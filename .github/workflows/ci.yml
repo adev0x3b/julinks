@@ -1,0 +1,141 @@
+name: CI
+
+# Runs on a self-hosted Linux runner (WSL2 on Andrea's desktop) while the repo is private,
+# because GitHub Free shares its 2,000 private-repo minutes across the whole account.
+# Switch every `runs-on` back to `ubuntu-latest` and remove the runner before making the
+# repo public: a self-hosted runner must never execute pull requests from strangers.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  SESSION_SECRET: ci-session-secret-that-is-long-enough-123456
+
+jobs:
+  checks:
+    name: Lint, types, unit and component tests
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npx vitest run --project unit --project component
+
+  integration:
+    name: Integration tests (PostgreSQL)
+    runs-on: [self-hosted, linux]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: julinks
+          POSTGRES_PASSWORD: julinks
+          POSTGRES_DB: julinks_test
+        # 5433 on the host: the runner's machine may run its own PostgreSQL on 5432.
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U julinks"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql://julinks:julinks@localhost:5433/julinks_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:integration
+
+  e2e:
+    name: End-to-end (Playwright, production build)
+    runs-on: [self-hosted, linux]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: julinks
+          POSTGRES_PASSWORD: julinks
+          POSTGRES_DB: julinks_e2e
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U julinks"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      E2E_DATABASE_URL: postgresql://julinks:julinks@localhost:5434/julinks_e2e
+      E2E_PORT: "3100"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Chromium for Playwright
+        run: npx playwright install --with-deps chromium || npx playwright install chromium
+      - name: Production build
+        run: npm run build
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+
+  compose-smoke:
+    name: docker compose smoke test
+    runs-on: [self-hosted, linux]
+    needs: [checks, integration, e2e]
+    env:
+      # Own project name and a high port so the stack never collides with whatever else runs on the host.
+      COMPOSE_PROJECT_NAME: julinks-ci
+      WEB_PORT: "13000"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and start the stack
+        run: docker compose up -d --build --quiet-pull
+      - name: Wait for the app to be healthy
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS "http://localhost:${WEB_PORT}/api/health" | grep -q '"ok"'; then exit 0; fi
+            sleep 3
+          done
+          docker compose logs; exit 1
+      - name: Demo profile is served from the seeded database
+        run: curl -fsS "http://localhost:${WEB_PORT}/ada" | grep -q "Ada Lovelace"
+      - name: A link click redirects and is recorded
+        run: |
+          id=$(curl -fsS "http://localhost:${WEB_PORT}/ada" | grep -oE 'data-link-id="[^"]+"' | head -1 | cut -d'"' -f2)
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${WEB_PORT}/l/${id}")
+          echo "redirect status: $code"; test "$code" = "302"
+          sleep 2
+          docker compose exec -T db psql -U julinks -d julinks -Atc "select count(*) from clicks where \"linkId\" = '${id}'" | grep -vq '^0$'
+      - name: Dashboard requires a session
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${WEB_PORT}/dashboard")
+          echo "dashboard status: $code"; test "$code" = "307"
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs
+      - run: docker compose down -v
+        if: always()

@@ -1,0 +1,45 @@
+# One command demo: `docker compose up --build`, then open http://localhost:${WEB_PORT:-3000}
+# Demo profile: http://localhost:3000/ada  (login ada@example.com / analytical-engine)
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: julinks
+      POSTGRES_PASSWORD: julinks
+      POSTGRES_DB: julinks
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U julinks -d julinks"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Runs the migrations and the demo seed once, then exits; web waits for it.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://julinks:julinks@db:5432/julinks
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      target: runner
+    environment:
+      DATABASE_URL: postgresql://julinks:julinks@db:5432/julinks
+      SESSION_SECRET: ${SESSION_SECRET:-compose-demo-secret-change-me-for-anything-real}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
