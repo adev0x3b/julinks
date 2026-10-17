@@ -46,7 +46,7 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 | [`src/components/editor/`](src/components/editor/), [`src/components/themes/`](src/components/themes/) | Client components: the editor and the theme studio own a draft of the page so the preview is instant, and reset it when fresh server data arrives. Drag and drop uses `@dnd-kit`. |
 | [`src/proxy.ts`](src/proxy.ts) | Optimistic redirects (no cookie → `/login`) before any rendering. Not the guard: pages and actions verify the session themselves. |
 | [`prisma/schema.prisma`](prisma/schema.prisma) | Four tables: `users`, `links` (ordered by `position`), `clicks`, `themes` (tokens as JSON). Image columns hold storage keys, never bytes. |
-| [`tests/support/fake-s3.ts`](tests/support/fake-s3.ts) | The slice of the S3 API the app uses, in memory, so the integration and e2e suites run without Docker. CI and the compose stack use SeaweedFS. |
+| [`scripts/fake-s3.ts`](scripts/fake-s3.ts) | The slice of the S3 API the app uses, in memory, so the integration and e2e suites run without Docker. CI and the compose stack use SeaweedFS. |
 | [`e2e/julinks.spec.ts`](e2e/julinks.spec.ts) | The user journey end to end: signup, links, uploads served back as WebP, theme building, publishing and copying from the gallery, cache invalidation, reordering. |
 
 ## Running it

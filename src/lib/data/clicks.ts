@@ -44,7 +44,7 @@ export async function getStats(userId: string, days = 30, now = new Date()): Pro
       SELECT c.referrer, COUNT(*)::bigint AS count
       FROM clicks c JOIN links l ON l.id = c."linkId"
       WHERE l."userId" = ${userId}
-      GROUP BY c.referrer ORDER BY count DESC LIMIT 5`,
+      GROUP BY c.referrer ORDER BY count DESC, c.referrer ASC NULLS LAST LIMIT 5`,
   ]);
 
   const byDay = new Map(rows.map((r) => [toDayKey(r.day), Number(r.count)]));

@@ -12,3 +12,5 @@ docs
 e2e
 tests
 *.md
+# Generated on the host by `npm install`; the deps stage generates its own, matching its OS.
+src/generated

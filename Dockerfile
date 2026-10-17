@@ -17,6 +17,8 @@ COPY prisma.config.ts ./
 RUN npm ci --no-audit --no-fund
 
 FROM deps AS builder
+# .dockerignore keeps a host's node_modules and src/generated out, so the client generated
+# by `npm ci` above (matching this image's OS) is the one that gets built.
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 # A placeholder URL: the build never connects, but the Prisma client needs the variable to exist.
