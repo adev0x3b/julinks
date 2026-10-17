@@ -25,10 +25,13 @@ services:
     volumes:
       - s3data:/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8333/ >/dev/null 2>&1 || wget -qO- http://localhost:9333/cluster/status >/dev/null"]
+      # 127.0.0.1, not localhost: SeaweedFS listens on IPv4 only, and where the container has
+      # IPv6 enabled busybox wget resolves localhost to ::1 first and gives up.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8333/ >/dev/null 2>&1"]
       interval: 5s
       timeout: 3s
       retries: 30
+      start_period: 20s
 
   # Runs the migrations and the demo seed once, then exits; web waits for it.
   migrate:
