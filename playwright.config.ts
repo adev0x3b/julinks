@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_SESSION_SECRET } from "./e2e/session-secret";
 
 const port = Number(process.env.E2E_PORT ?? 3100);
+/** Also imported by the spec that mints a stale session token. Lives here because e2e/ is outside the Docker build context. */
+export const E2E_SESSION_SECRET = "e2e-session-secret-that-is-long-enough-123456";
 const databaseUrl = process.env.E2E_DATABASE_URL ?? "postgresql://linkdeck:linkdeck@127.0.0.1:5432/linkdeck_e2e";
 // Object storage: a real S3 service when E2E_S3_ENDPOINT is set (SeaweedFS in CI), otherwise the in-memory stand-in on the next port.
 const fakeS3Port = port + 1;
