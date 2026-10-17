@@ -3,22 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { PublicProfile } from "@/components/PublicProfile";
+import { PublicProfile, type PublicTheme } from "@/components/PublicProfile";
 import { AddLinkForm } from "./AddLinkForm";
 import { LinkList, type EditorLink } from "./LinkList";
 import { ProfilePanel, type ProfileDraft } from "./ProfilePanel";
 
-export type EditorUser = { username: string; displayName: string; bio: string; theme: string };
+export type EditorUser = { username: string; displayName: string; bio: string; avatarUrl: string | null };
 
 /**
  * Owns the editable state of the page so the preview updates as you type and
  * drag, before the server round trip finishes. Server data arrives as props
  * after each router.refresh(); when it changes, local state is reset to it.
  */
-export function Editor({ user, links }: { user: EditorUser; links: EditorLink[] }) {
+export function Editor({ user, theme, links }: { user: EditorUser; theme: PublicTheme; links: EditorLink[] }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [profile, setProfile] = useState<ProfileDraft>({ displayName: user.displayName, bio: user.bio, theme: user.theme });
+  const [profile, setProfile] = useState<ProfileDraft>({ displayName: user.displayName, bio: user.bio, avatarUrl: user.avatarUrl });
   const [items, setItems] = useState(links);
   const [syncedLinks, setSyncedLinks] = useState(links);
   if (links !== syncedLinks) {
@@ -31,10 +31,12 @@ export function Editor({ user, links }: { user: EditorUser; links: EditorLink[] 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
       <div className="flex flex-col gap-6">
-        <ProfilePanel username={user.username} draft={profile} onChange={setProfile} />
+        <ProfilePanel username={user.username} themeName={theme.name} draft={profile} onChange={setProfile} />
         <section className="card">
           <h2 className="text-base font-semibold">Links</h2>
-          <p className="mb-4 text-sm text-stone-500">Drag to reorder. Disabled links stay here but leave your page.</p>
+          <p className="mb-4 text-sm text-stone-500">
+            Drag to reorder. Click the square to give a link a picture. Disabled links stay here but leave your page.
+          </p>
           <AddLinkForm onAdded={refresh} />
           <LinkList items={items} onChange={setItems} onRefresh={refresh} />
         </section>
@@ -49,8 +51,11 @@ export function Editor({ user, links }: { user: EditorUser; links: EditorLink[] 
                 username: user.username,
                 displayName: profile.displayName || user.displayName,
                 bio: profile.bio,
-                theme: profile.theme,
-                links: items.filter((l) => l.enabled).map(({ id, title, url }) => ({ id, title, url })),
+                avatarUrl: profile.avatarUrl,
+                theme,
+                links: items
+                  .filter((l) => l.enabled)
+                  .map(({ id, title, url, thumbnailUrl }) => ({ id, title, url, thumbnailUrl })),
               }}
             />
           </PhoneFrame>

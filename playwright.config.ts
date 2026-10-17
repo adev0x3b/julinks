@@ -2,6 +2,15 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.E2E_PORT ?? 3100);
 const databaseUrl = process.env.E2E_DATABASE_URL ?? "postgresql://linkdeck:linkdeck@127.0.0.1:5432/linkdeck_e2e";
+// Object storage: a real S3 service when E2E_S3_ENDPOINT is set (SeaweedFS in CI), otherwise the in-memory stand-in on the next port.
+const fakeS3Port = port + 1;
+const s3Endpoint = process.env.E2E_S3_ENDPOINT ?? `http://127.0.0.1:${fakeS3Port}`;
+const s3Env = {
+  S3_ENDPOINT: s3Endpoint,
+  S3_BUCKET: process.env.E2E_S3_BUCKET ?? "julinks-e2e",
+  S3_ACCESS_KEY_ID: process.env.S3_ACCESS_KEY_ID ?? "julinks",
+  S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "julinks-secret",
+};
 
 /**
  * End-to-end tests run against the production build (`npm run build` first),
@@ -20,19 +29,32 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: [
-      "npx prisma migrate deploy",
-      "npx tsx prisma/seed.ts",
-      "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/",
-      `PORT=${port} HOSTNAME=127.0.0.1 node .next/standalone/server.js`,
-    ].join(" && "),
-    url: `http://127.0.0.1:${port}/api/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-    env: {
-      DATABASE_URL: databaseUrl,
-      SESSION_SECRET: "e2e-session-secret-that-is-long-enough-123456",
+  webServer: [
+    ...(process.env.E2E_S3_ENDPOINT
+      ? []
+      : [
+          {
+            command: `npx tsx scripts/fake-s3.ts ${fakeS3Port}`,
+            url: `http://127.0.0.1:${fakeS3Port}/healthz`,
+            reuseExistingServer: !process.env.CI,
+            timeout: 30_000,
+          },
+        ]),
+    {
+      command: [
+        "npx prisma migrate deploy",
+        "npx tsx prisma/seed.ts",
+        "cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/",
+        `PORT=${port} HOSTNAME=127.0.0.1 node .next/standalone/server.js`,
+      ].join(" && "),
+      url: `http://127.0.0.1:${port}/api/health`,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: {
+        DATABASE_URL: databaseUrl,
+        SESSION_SECRET: "e2e-session-secret-that-is-long-enough-123456",
+        ...s3Env,
+      },
     },
-  },
+  ],
 });

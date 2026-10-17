@@ -1,7 +1,7 @@
 /**
  * Takes the README screenshots against a running server seeded with the demo user.
  *
- *   npx next start -p 3100   (with DATABASE_URL pointing at a seeded database)
+ *   npm run build && node .next/standalone/server.js   (PORT=3100, DATABASE_URL and S3_* pointing at seeded stores)
  *   npx tsx scripts/screenshots.ts
  */
 import { chromium } from "@playwright/test";
@@ -31,6 +31,14 @@ async function main() {
   await page.goto(`${base}/dashboard/stats`);
   await page.getByTestId("clicks-per-link").waitFor();
   await page.screenshot({ path: `${out}/stats.png` });
+
+  await page.goto(`${base}/dashboard/appearance`);
+  await page.getByTestId("theme-builder").waitFor();
+  await page.screenshot({ path: `${out}/appearance.png` });
+
+  await page.goto(`${base}/themes`);
+  await page.getByTestId("gallery-card").first().waitFor();
+  await page.screenshot({ path: `${out}/gallery.png` });
   await desktop.close();
 
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });

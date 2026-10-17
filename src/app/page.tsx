@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { PublicProfile } from "@/components/PublicProfile";
+import { PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
+import { DEFAULT_PRESET } from "@/lib/themes";
 
-const demo = {
+const demo: PublicProfileData = {
   username: "ada",
   displayName: "Ada Lovelace",
   bio: "Analyst, metaphysician, and founder of scientific computing.",
-  theme: "midnight",
+  avatarUrl: null,
+  theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
   links: [
-    { id: "1", title: "Notes on the Analytical Engine", url: "https://example.com/notes" },
-    { id: "2", title: "Poetical science", url: "https://example.com/poetry" },
-    { id: "3", title: "Letters to Babbage", url: "https://example.com/letters" },
+    { id: "1", title: "Notes on the Analytical Engine", url: "https://example.com/notes", thumbnailUrl: null },
+    { id: "2", title: "Poetical science", url: "https://example.com/poetry", thumbnailUrl: null },
+    { id: "3", title: "Letters to Babbage", url: "https://example.com/letters", thumbnailUrl: null },
   ],
 };
 
@@ -21,6 +23,9 @@ export default function Home() {
       <header className="flex items-center justify-between">
         <Logo />
         <nav className="flex items-center gap-2">
+          <Link href="/themes" className="btn-ghost">
+            Themes
+          </Link>
           <Link href="/login" className="btn-ghost">
             Log in
           </Link>
@@ -53,8 +58,8 @@ export default function Home() {
               Arrange links in seconds, with a live preview.
             </li>
             <li className="card p-4">
-              <strong className="block text-stone-900">Five themes</strong>
-              From Midnight to Neon. Switch anytime.
+              <strong className="block text-stone-900">Your own look</strong>
+              Start from a preset, tune every colour, add a photo and a background. Publish it for others.
             </li>
             <li className="card p-4">
               <strong className="block text-stone-900">Click stats</strong>

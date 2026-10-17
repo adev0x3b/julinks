@@ -56,3 +56,5 @@ export const authLimiter = limiter("auth", 10, 15 * 60 * 1000);
 export const clickLimiter = limiter("click", 120, 60 * 1000);
 /** 300 public page views per minute per IP. */
 export const publicLimiter = limiter("public", 300, 60 * 1000);
+/** Image uploads per user: each one is decoded and re-encoded, so keep the CPU honest. */
+export const uploadLimiter = limiter("upload", 40, 15 * 60 * 1000);

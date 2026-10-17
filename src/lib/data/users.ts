@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { DEFAULT_THEME } from "@/lib/themes";
+import type { PublicProfileData } from "@/components/PublicProfile";
+import { imageUrl } from "@/lib/image-url";
+import { DEFAULT_PRESET, type ThemeTokens } from "@/lib/themes";
 
 export type NewUser = { username: string; email: string; password: string; displayName: string };
 
@@ -26,7 +28,6 @@ export async function createUser(input: NewUser) {
         email: input.email,
         passwordHash,
         displayName: input.displayName,
-        theme: DEFAULT_THEME,
       },
       select: { id: true, username: true, email: true, displayName: true },
     });
@@ -56,30 +57,52 @@ export async function authenticate(email: string, password: string) {
 // bcrypt hash of a random string, cost 12. Only used to burn the same time as a real comparison.
 const DUMMY_HASH = "$2b$12$C6UzMDM.H6dfI/f/IKcEeO5f3B7y2mHtZx7dL0JYQ.NnRhWvJmJ0e";
 
-export type ProfileUpdate = { displayName: string; bio: string; theme: string };
+export type ProfileUpdate = { displayName: string; bio: string };
 
 export async function updateProfile(userId: string, input: ProfileUpdate) {
   return prisma.user.update({
     where: { id: userId },
     data: input,
-    select: { id: true, username: true, displayName: true, bio: true, theme: true },
+    select: { id: true, username: true, displayName: true, bio: true },
+  });
+}
+
+/** Sets or clears the avatar; returns the previous key so the caller can delete the old object. */
+export async function setAvatar(userId: string, avatarKey: string | null): Promise<string | null> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { avatarKey: true } });
+    await tx.user.update({ where: { id: userId }, data: { avatarKey } });
+    return current.avatarKey;
   });
 }
 
 /** Everything the public page needs, or null when the username is unknown. */
-export async function getPublicProfile(username: string) {
-  return prisma.user.findUnique({
+export async function getPublicProfile(username: string): Promise<PublicProfileData | null> {
+  const user = await prisma.user.findUnique({
     where: { username },
     select: {
       username: true,
       displayName: true,
       bio: true,
-      theme: true,
+      avatarKey: true,
+      theme: { select: { name: true, tokens: true, backgroundKey: true } },
       links: {
         where: { enabled: true },
         orderBy: { position: "asc" },
-        select: { id: true, title: true, url: true },
+        select: { id: true, title: true, url: true, thumbnailKey: true },
       },
     },
   });
+  if (!user) return null;
+  const theme = user.theme
+    ? { name: user.theme.name, tokens: user.theme.tokens as ThemeTokens, backgroundUrl: imageUrl(user.theme.backgroundKey) }
+    : { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null };
+  return {
+    username: user.username,
+    displayName: user.displayName,
+    bio: user.bio,
+    avatarUrl: imageUrl(user.avatarKey),
+    theme,
+    links: user.links.map((l) => ({ id: l.id, title: l.title, url: l.url, thumbnailUrl: imageUrl(l.thumbnailKey) })),
+  };
 }

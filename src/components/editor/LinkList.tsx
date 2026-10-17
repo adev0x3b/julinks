@@ -11,11 +11,12 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { editLink, removeLink, reorder, setLinkEnabled } from "@/actions/links";
+import { removeLinkThumbnail, uploadLinkThumbnail } from "@/actions/uploads";
 import { moveItem } from "@/lib/reorder";
 
-export type EditorLink = { id: string; title: string; url: string; enabled: boolean; clicks: number };
+export type EditorLink = { id: string; title: string; url: string; enabled: boolean; clicks: number; thumbnailUrl: string | null };
 
 export function LinkList({
   items,
@@ -173,6 +174,7 @@ function LinkRow({
           <circle cx="11" cy="13" r="1.5" />
         </svg>
       </button>
+      <ThumbnailPicker link={link} onPatch={onPatch} onError={onError} />
 
       {editing ? (
         <form action={save} className="flex flex-1 flex-wrap items-center gap-2">
@@ -225,5 +227,88 @@ function LinkRow({
         </>
       )}
     </li>
+  );
+}
+
+/** The square before the title: shows the link's picture, or a dashed placeholder; click to upload, hover to remove. */
+function ThumbnailPicker({
+  link,
+  onPatch,
+  onError,
+}: {
+  link: EditorLink;
+  onPatch: (changes: Partial<EditorLink>) => void;
+  onError: (message: string | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [pending, startTransition] = useTransition();
+
+  function pick(file: File | undefined) {
+    if (!file) return;
+    const formData = new FormData();
+    formData.set("file", file);
+    startTransition(async () => {
+      const result = await uploadLinkThumbnail(link.id, formData);
+      if (result.ok) {
+        onError(null);
+        onPatch({ thumbnailUrl: result.url });
+      } else {
+        onError(result.error);
+      }
+      if (inputRef.current) inputRef.current.value = "";
+    });
+  }
+
+  function remove() {
+    startTransition(async () => {
+      const result = await removeLinkThumbnail(link.id);
+      if (result.ok) onPatch({ thumbnailUrl: null });
+      else onError(result.error);
+    });
+  }
+
+  return (
+    <div className="group relative shrink-0">
+      <button
+        type="button"
+        className={`grid size-10 place-items-center overflow-hidden rounded-lg border text-stone-400 transition hover:border-brand-500 hover:text-brand-600 ${
+          link.thumbnailUrl ? "border-stone-200" : "border-dashed border-stone-300"
+        } ${pending ? "opacity-60" : ""}`}
+        aria-label={`${link.thumbnailUrl ? "Change" : "Add"} picture for ${link.title}`}
+        onClick={() => inputRef.current?.click()}
+        disabled={pending}
+      >
+        {link.thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={link.thumbnailUrl} alt="" className="size-full object-cover" data-testid="link-thumbnail" />
+        ) : (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <rect x="3" y="3" width="18" height="18" rx="3" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="sr-only"
+        aria-label={`Picture file for ${link.title}`}
+        onChange={(ev) => pick(ev.target.files?.[0])}
+        disabled={pending}
+      />
+      {link.thumbnailUrl && (
+        <button
+          type="button"
+          className="absolute -right-1.5 -top-1.5 hidden size-5 place-items-center rounded-full bg-stone-700 text-xs text-white group-hover:grid focus:grid"
+          aria-label={`Remove picture for ${link.title}`}
+          onClick={remove}
+          disabled={pending}
+        >
+          ×
+        </button>
+      )}
+    </div>
   );
 }

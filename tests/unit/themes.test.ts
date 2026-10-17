@@ -1,13 +1,56 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_THEME, getTheme, THEMES, THEME_IDS } from "@/lib/themes";
+import { DEFAULT_PRESET, getPreset, luminance, pageBackground, PRESETS, themeStyle, withAlpha } from "@/lib/themes";
+import { themeTokensSchema } from "@/lib/validation";
 
-describe("themes", () => {
-  it("has unique ids and the default among them", () => {
-    expect(new Set(THEME_IDS).size).toBe(THEMES.length);
-    expect(THEME_IDS).toContain(DEFAULT_THEME);
+describe("presets", () => {
+  it("have unique ids, the default among them, and tokens that pass the schema", () => {
+    expect(new Set(PRESETS.map((p) => p.id)).size).toBe(PRESETS.length);
+    expect(PRESETS).toContain(DEFAULT_PRESET);
+    for (const preset of PRESETS) {
+      expect(themeTokensSchema.safeParse(preset.tokens).success, preset.id).toBe(true);
+    }
+    expect(getPreset("nope")).toBeUndefined();
+    expect(getPreset("paper")?.name).toBe("Paper");
   });
-  it("falls back to the first theme for unknown ids", () => {
-    expect(getTheme("does-not-exist")).toBe(THEMES[0]);
-    expect(getTheme("paper").id).toBe("paper");
+});
+
+describe("themeStyle", () => {
+  it("turns tokens into custom properties, flat or gradient", () => {
+    const flat = themeStyle({ ...DEFAULT_PRESET.tokens, backgroundEnd: null });
+    expect(flat["--jl-bg"]).toBe(DEFAULT_PRESET.tokens.background);
+    const gradient = themeStyle(DEFAULT_PRESET.tokens);
+    expect(gradient["--jl-bg"]).toBe(pageBackground(DEFAULT_PRESET.tokens));
+    expect(gradient["--jl-bg"]).toContain("linear-gradient(160deg");
+    expect(gradient["--jl-radius"]).toBe("9999px");
+    expect(gradient["--jl-font"]).toContain("system-ui");
+  });
+
+  it("layers the overlay and the image over the background when an image is set", () => {
+    const style = themeStyle({ ...DEFAULT_PRESET.tokens, overlay: 50 }, "/img/backgrounds/u/abc.webp");
+    expect(style["--jl-bg"]).toBe(
+      'linear-gradient(#00000080, #00000080), url("/img/backgrounds/u/abc.webp") center / cover no-repeat, ' + pageBackground(DEFAULT_PRESET.tokens),
+    );
+  });
+
+  it("maps button styles", () => {
+    const tokens = { ...DEFAULT_PRESET.tokens, button: "#ff0000" };
+    expect(themeStyle({ ...tokens, buttonStyle: "solid" })["--jl-btn-bg"]).toBe("#ff0000");
+    expect(themeStyle({ ...tokens, buttonStyle: "outline" })["--jl-btn-bg"]).toBe("transparent");
+    expect(themeStyle({ ...tokens, buttonStyle: "outline" })["--jl-btn-border"]).toBe("#ff0000");
+    expect(themeStyle({ ...tokens, buttonStyle: "glass" })["--jl-btn-bg"]).toBe("#ff00001f");
+  });
+});
+
+describe("colour helpers", () => {
+  it("appends alpha as two hex digits, clamped", () => {
+    expect(withAlpha("#ffffff", 0)).toBe("#ffffff00");
+    expect(withAlpha("#ffffff", 1)).toBe("#ffffffff");
+    expect(withAlpha("#ffffff", 2)).toBe("#ffffffff");
+    expect(withAlpha("#000000", 0.5)).toBe("#00000080");
+  });
+  it("measures luminance", () => {
+    expect(luminance("#000000")).toBe(0);
+    expect(luminance("#ffffff")).toBeCloseTo(1);
+    expect(luminance("#ff0000")).toBeLessThan(luminance("#00ff00"));
   });
 });

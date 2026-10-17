@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { THEME_IDS } from "@/lib/themes";
+import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII } from "@/lib/themes";
 
 /** Path segments that would collide with app routes if used as usernames. */
 export const RESERVED_USERNAMES = new Set([
-  "login", "signup", "logout", "dashboard", "api", "l", "admin", "settings",
-  "stats", "static", "public", "assets", "favicon.ico", "robots.txt", "sitemap.xml", "health",
+  "login", "signup", "logout", "dashboard", "api", "l", "img", "themes", "admin", "settings",
+  "stats", "static", "public", "assets", "uploads", "favicon.ico", "robots.txt", "sitemap.xml", "health",
 ]);
 
 export const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])?$/;
@@ -58,8 +58,33 @@ export const linkSchema = z.object({
 export const profileSchema = z.object({
   displayName: z.string().trim().min(1, "Display name is required").max(60),
   bio: z.string().trim().max(200, "Bio must be at most 200 characters"),
-  theme: z.enum(THEME_IDS),
 });
+
+const colour = z.string().trim().toLowerCase().regex(HEX_COLOUR, "Use a #rrggbb colour");
+
+/** Theme tokens as stored in the database and posted by the theme studio. Strict: unknown keys are errors. */
+export const themeTokensSchema = z.strictObject({
+  background: colour,
+  backgroundEnd: colour.nullable(),
+  text: colour,
+  muted: colour,
+  button: colour,
+  buttonText: colour,
+  buttonStyle: z.enum(BUTTON_STYLES),
+  radius: z.enum(Object.keys(RADII) as [keyof typeof RADII, ...(keyof typeof RADII)[]]),
+  font: z.enum(Object.keys(FONTS) as [keyof typeof FONTS, ...(keyof typeof FONTS)[]]),
+  overlay: z.coerce.number().int().min(0).max(90),
+});
+
+export const themeSchema = z.object({
+  name: z.string().trim().min(1, "Give the theme a name").max(40, "Name must be at most 40 characters"),
+  tokens: themeTokensSchema,
+});
+
+/** Uploads: the three image kinds and the size limit enforced before any decoding happens. */
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+export const IMAGE_KINDS = ["avatar", "thumbnail", "background"] as const;
+export type ImageKind = (typeof IMAGE_KINDS)[number];
 
 export const reorderSchema = z.array(z.string().min(1)).min(1).max(200);
 
