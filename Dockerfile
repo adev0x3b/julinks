@@ -4,7 +4,11 @@
 #   migrate -> one-shot container: prisma migrate deploy + demo seed
 #   runner  -> the production server, nothing but the standalone bundle
 
-FROM node:22-alpine AS deps
+# Debian for the stages that run the Prisma CLI: `prisma migrate` still uses a native
+# schema engine that needs OpenSSL, and `npm ci` downloads the matching build.
+FROM node:22-bookworm-slim AS deps
+RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
@@ -24,6 +28,7 @@ COPY src/generated ./src/generated
 COPY tsconfig.json ./
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts"]
 
+# The server itself needs no Prisma engine (driver adapter + pure JS deps), so Alpine is enough.
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
