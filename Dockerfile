@@ -28,6 +28,8 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx next build
 FROM deps AS migrate
 COPY prisma ./prisma
 COPY tsconfig.json ./
+# The seed uses the app's image pipeline and storage client (src/lib) to upload the demo pictures.
+COPY src ./src
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts"]
 
 # The server: the standalone bundle only. Same Debian base as the install, so the sharp
