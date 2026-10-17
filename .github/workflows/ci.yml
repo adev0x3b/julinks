@@ -77,7 +77,6 @@ jobs:
           --health-timeout 3s
           --health-retries 20
     env:
-      E2E_DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
       E2E_PORT: "3100"
     steps:
       - uses: actions/checkout@v4
@@ -91,8 +90,11 @@ jobs:
       - name: Production build
         run: npm run build
         env:
-          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+          # The `job` context (service ports) is only available at step level, not in job env.
+          DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
       - run: npm run test:e2e
+        env:
+          E2E_DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
