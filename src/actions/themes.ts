@@ -14,7 +14,7 @@ import {
   updateTheme,
 } from "@/lib/data/themes";
 import { rekeyImage } from "@/lib/images";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { copyObject, deleteObject } from "@/lib/storage";
 import { getPreset } from "@/lib/themes";
 import { fieldErrors, themeSchema } from "@/lib/validation";
@@ -22,12 +22,6 @@ import { fieldErrors, themeSchema } from "@/lib/validation";
 export type ActionResult = { ok: true } | { ok: false; error: string };
 export type CreateResult = { ok: true; themeId: string } | { ok: false; error: string };
 export type SaveThemeState = { errors?: Record<string, string>; savedAt?: number };
-
-async function requireUser() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  return user;
-}
 
 function message(error: unknown, fallback: string): string {
   if (error instanceof ThemeNotFound) return "Theme not found";
@@ -78,8 +72,7 @@ export async function copyTheme(themeId: string): Promise<CreateResult> {
 
 /** The gallery's "Use this theme" button: copy, then go to the studio. */
 export async function useGalleryTheme(formData: FormData): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  await requireUser();
   const result = await copyTheme(String(formData.get("themeId") ?? ""));
   redirect(result.ok ? `/dashboard/appearance?theme=${result.themeId}` : "/dashboard/appearance?error=copy");
 }

@@ -1,10 +1,9 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { profileTag } from "@/lib/cache-tags";
 import { createLink, deleteLink, NotFound, reorderLinks, updateLink } from "@/lib/data/links";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { fieldErrors, linkSchema, reorderSchema } from "@/lib/validation";
 
 export type LinkFormState = {
@@ -15,12 +14,6 @@ export type LinkFormState = {
 };
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
-
-async function requireUser() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  return user;
-}
 
 export async function addLink(_prev: LinkFormState, formData: FormData): Promise<LinkFormState> {
   const user = await requireUser();

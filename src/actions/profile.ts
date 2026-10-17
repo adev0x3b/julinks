@@ -1,10 +1,9 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { profileTag } from "@/lib/cache-tags";
 import { updateProfile } from "@/lib/data/users";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { fieldErrors, profileSchema } from "@/lib/validation";
 
 export type ProfileFormState = {
@@ -13,8 +12,7 @@ export type ProfileFormState = {
 };
 
 export async function saveProfile(_prev: ProfileFormState, formData: FormData): Promise<ProfileFormState> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireUser();
   const parsed = profileSchema.safeParse({
     displayName: formData.get("displayName"),
     bio: formData.get("bio"),

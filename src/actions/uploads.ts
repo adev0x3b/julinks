@@ -1,25 +1,18 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { redirect } from "next/navigation";
 import { GALLERY_TAG, profileTag } from "@/lib/cache-tags";
 import { NotFound, setLinkThumbnail } from "@/lib/data/links";
 import { getOwnTheme, setThemeBackground, ThemeNotFound } from "@/lib/data/themes";
 import { setAvatar } from "@/lib/data/users";
 import { imageKey, processImage, UnsupportedImage } from "@/lib/images";
 import { uploadLimiter } from "@/lib/rate-limit";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 import { deleteObject, putObject } from "@/lib/storage";
 import { MAX_UPLOAD_BYTES, type ImageKind } from "@/lib/validation";
 
 export type UploadResult = { ok: true; url: string } | { ok: false; error: string };
 export type ActionResult = { ok: true } | { ok: false; error: string };
-
-async function requireUser() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  return user;
-}
 
 /**
  * Shared upload path: size check before anything is read, rate limit per user,
