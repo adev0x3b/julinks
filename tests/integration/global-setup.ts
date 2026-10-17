@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import type { TestProject } from "vitest/node";
-import { startFakeS3 } from "../support/fake-s3";
+import { startFakeS3 } from "../../scripts/fake-s3";
 
 declare module "vitest" {
   export interface ProvidedContext {
