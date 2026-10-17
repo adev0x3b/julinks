@@ -16,6 +16,8 @@ concurrency:
 env:
   NEXT_TELEMETRY_DISABLED: "1"
   SESSION_SECRET: ci-session-secret-that-is-long-enough-123456
+  S3_ACCESS_KEY_ID: julinks
+  S3_SECRET_ACCESS_KEY: julinks-secret
 
 jobs:
   checks:
@@ -56,9 +58,27 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci --no-audit --no-fund
+      # SeaweedFS as a plain container rather than a `services:` entry: service containers cannot
+      # set a command, and the image needs `server -s3`. Random host port, cleaned up below.
+      - name: Start SeaweedFS
+        run: |
+          name="julinks-s3-${{ github.run_id }}-${{ github.job }}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          docker run -d --name "$name" -p 127.0.0.1::8333 chrislusf/seaweedfs:4.48 server -s3 -dir=/data
+          port=$(docker port "$name" 8333/tcp | head -1 | sed 's/.*://')
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null "http://127.0.0.1:$port/" && break
+            sleep 2
+          done
+          echo "S3_NAME=$name" >> "$GITHUB_ENV"
+          echo "S3_TEST_ENDPOINT=http://127.0.0.1:$port" >> "$GITHUB_ENV"
       - run: npm run test:integration
         env:
           TEST_DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_test
+          TEST_S3_ENDPOINT: ${{ env.S3_TEST_ENDPOINT }}
+      - name: Stop SeaweedFS
+        if: always()
+        run: docker rm -f "$S3_NAME" >/dev/null 2>&1 || true
 
   e2e:
     name: End-to-end (Playwright, production build)
@@ -92,9 +112,27 @@ jobs:
         env:
           # The `job` context (service ports) is only available at step level, not in job env.
           DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
+      # SeaweedFS as a plain container rather than a `services:` entry: service containers cannot
+      # set a command, and the image needs `server -s3`. Random host port, cleaned up below.
+      - name: Start SeaweedFS
+        run: |
+          name="julinks-s3-${{ github.run_id }}-${{ github.job }}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          docker run -d --name "$name" -p 127.0.0.1::8333 chrislusf/seaweedfs:4.48 server -s3 -dir=/data
+          port=$(docker port "$name" 8333/tcp | head -1 | sed 's/.*://')
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null "http://127.0.0.1:$port/" && break
+            sleep 2
+          done
+          echo "S3_NAME=$name" >> "$GITHUB_ENV"
+          echo "S3_TEST_ENDPOINT=http://127.0.0.1:$port" >> "$GITHUB_ENV"
       - run: npm run test:e2e
         env:
           E2E_DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
+          E2E_S3_ENDPOINT: ${{ env.S3_TEST_ENDPOINT }}
+      - name: Stop SeaweedFS
+        if: always()
+        run: docker rm -f "$S3_NAME" >/dev/null 2>&1 || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -123,8 +161,15 @@ jobs:
             sleep 3
           done
           docker compose logs; exit 1
-      - name: Demo profile is served from the seeded database
-        run: curl -fsS "http://localhost:${WEB_PORT}/ada" | grep -q "Ada Lovelace"
+      - name: Demo profile is served from the seeded database, with its avatar from object storage
+        run: |
+          html=$(curl -fsS "http://localhost:${WEB_PORT}/ada")
+          echo "$html" | grep -q "Ada Lovelace"
+          avatar=$(echo "$html" | grep -oE '/img/avatars/[A-Za-z0-9/._-]+' | head -1)
+          echo "avatar: $avatar"; test -n "$avatar"
+          curl -fsS -o /dev/null -w '%{content_type}\n' "http://localhost:${WEB_PORT}${avatar}" | grep -q "image/webp"
+      - name: Theme gallery lists the seeded themes
+        run: curl -fsS "http://localhost:${WEB_PORT}/themes" | grep -q "Poetical Science"
       - name: A link click redirects and is recorded
         run: |
           id=$(curl -fsS "http://localhost:${WEB_PORT}/ada" | grep -oE 'data-link-id="[^"]+"' | head -1 | cut -d'"' -f2)

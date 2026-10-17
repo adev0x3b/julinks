@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fieldErrors, linkSchema, linkUrlSchema, signupSchema, usernameSchema } from "@/lib/validation";
+import { fieldErrors, linkSchema, linkUrlSchema, signupSchema, themeSchema, themeTokensSchema, usernameSchema } from "@/lib/validation";
 
 describe("usernameSchema", () => {
   it.each(["ada", "ada_lovelace", "ada-99", "A1b"])("accepts %s", (value) => {
@@ -59,5 +59,49 @@ describe("signupSchema", () => {
 
   it("rejects short passwords", () => {
     expect(signupSchema.safeParse({ username: "ada", email: "a@b.co", password: "short", displayName: "Ada" }).success).toBe(false);
+  });
+});
+
+describe("themeTokensSchema", () => {
+  const valid = {
+    background: "#0F172A",
+    backgroundEnd: null,
+    text: "#f8fafc",
+    muted: "#a5b4fc",
+    button: "#ffffff",
+    buttonText: "#f8fafc",
+    buttonStyle: "glass",
+    radius: "pill",
+    font: "sans",
+    overlay: "30",
+  };
+
+  it("lowercases colours and coerces the overlay", () => {
+    const parsed = themeTokensSchema.parse(valid);
+    expect(parsed.background).toBe("#0f172a");
+    expect(parsed.overlay).toBe(30);
+  });
+
+  it.each([
+    ["a non-hex colour", { ...valid, text: "red" }],
+    ["a short hex colour", { ...valid, text: "#fff" }],
+    ["an 8-digit colour", { ...valid, button: "#ffffff80" }],
+    ["an unknown button style", { ...valid, buttonStyle: "neon" }],
+    ["an overlay out of range", { ...valid, overlay: 95 }],
+    ["an unknown key (no CSS smuggling)", { ...valid, extra: "url(evil)" }],
+  ])("rejects %s", (_label, value) => {
+    expect(themeTokensSchema.safeParse(value).success).toBe(false);
+  });
+
+  it("requires a theme name of at most 40 characters", () => {
+    expect(themeSchema.safeParse({ name: "", tokens: valid }).success).toBe(false);
+    expect(themeSchema.safeParse({ name: "x".repeat(41), tokens: valid }).success).toBe(false);
+    expect(themeSchema.safeParse({ name: "  Mine  ", tokens: valid }).data?.name).toBe("Mine");
+  });
+});
+
+describe("reserved usernames", () => {
+  it.each(["img", "themes", "uploads"])("keeps %s for app routes", (value) => {
+    expect(usernameSchema.safeParse(value).success).toBe(false);
   });
 });

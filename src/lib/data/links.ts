@@ -12,7 +12,7 @@ export async function listLinks(userId: string) {
   return prisma.link.findMany({
     where: { userId },
     orderBy: { position: "asc" },
-    select: { id: true, title: true, url: true, position: true, enabled: true, _count: { select: { clicks: true } } },
+    select: { id: true, title: true, url: true, position: true, enabled: true, thumbnailKey: true, _count: { select: { clicks: true } } },
   });
 }
 
@@ -38,6 +38,16 @@ export async function updateLink(userId: string, linkId: string, input: { title?
   return prisma.link.findUniqueOrThrow({
     where: { id: linkId },
     select: { id: true, title: true, url: true, position: true, enabled: true },
+  });
+}
+
+/** Sets or clears a link's thumbnail; returns the previous key so the caller can delete the old object. */
+export async function setLinkThumbnail(userId: string, linkId: string, thumbnailKey: string | null): Promise<string | null> {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.link.findFirst({ where: { id: linkId, userId }, select: { thumbnailKey: true } });
+    if (!current) throw new NotFound();
+    await tx.link.update({ where: { id: linkId }, data: { thumbnailKey } });
+    return current.thumbnailKey;
   });
 }
 

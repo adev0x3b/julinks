@@ -1,22 +1,27 @@
-import { getTheme } from "@/lib/themes";
+import { themeStyle, type ThemeTokens } from "@/lib/themes";
 
-export type PublicLink = { id: string; title: string; url: string };
+export type PublicLink = { id: string; title: string; url: string; thumbnailUrl: string | null };
+
+export type PublicTheme = { name: string; tokens: ThemeTokens; backgroundUrl: string | null };
 
 export type PublicProfileData = {
   username: string;
   displayName: string;
   bio: string;
-  theme: string;
+  avatarUrl: string | null;
+  theme: PublicTheme;
   links: PublicLink[];
 };
 
 /**
- * The public page body. Rendered on the server for /username and on the
- * client inside the editor's live preview, so it must stay free of hooks
- * and server-only imports. In preview mode links do not navigate.
+ * The public page body. Rendered on the server for /username, in the editor's
+ * live preview, in the theme studio and in gallery cards, so it must stay free
+ * of hooks and server-only imports. The theme arrives as CSS custom properties
+ * on the root element (see themeStyle); everything below only reads them.
+ * In preview mode links do not navigate.
  */
 export function PublicProfile({ profile, preview = false }: { profile: PublicProfileData; preview?: boolean }) {
-  const theme = getTheme(profile.theme);
+  const { theme } = profile;
   const initials = profile.displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -26,21 +31,21 @@ export function PublicProfile({ profile, preview = false }: { profile: PublicPro
 
   return (
     <div
-      className="flex min-h-full w-full flex-col items-center px-5 py-12"
-      style={{ background: theme.background, color: theme.text }}
-      data-theme={theme.id}
+      className="jl-page flex min-h-full w-full flex-col items-center px-5 py-12"
+      style={themeStyle(theme.tokens, theme.backgroundUrl)}
+      data-theme={theme.name}
     >
-      <div
-        className="grid size-20 place-items-center rounded-full text-2xl font-semibold"
-        style={{ background: theme.button, color: theme.buttonText, border: `2px solid ${theme.muted}` }}
-        aria-hidden
-      >
-        {initials || "?"}
-      </div>
+      {profile.avatarUrl ? (
+        // Already resized and re-encoded on upload; the optimiser would only add a hop.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={profile.avatarUrl} alt="" width={80} height={80} className="jl-avatar size-20 rounded-full object-cover" />
+      ) : (
+        <div className="jl-avatar grid size-20 place-items-center rounded-full text-2xl font-semibold" aria-hidden>
+          {initials || "?"}
+        </div>
+      )}
       <h1 className="mt-4 text-xl font-semibold">{profile.displayName}</h1>
-      <p className="mt-1 text-sm" style={{ color: theme.muted }}>
-        @{profile.username}
-      </p>
+      <p className="jl-muted mt-1 text-sm">@{profile.username}</p>
       {profile.bio && <p className="mt-3 max-w-xs text-center text-sm leading-relaxed">{profile.bio}</p>}
 
       <ul className="mt-8 flex w-full max-w-sm flex-col gap-3" aria-label="Links">
@@ -49,29 +54,43 @@ export function PublicProfile({ profile, preview = false }: { profile: PublicPro
             <a
               href={preview ? undefined : `/l/${link.id}`}
               role={preview ? "button" : undefined}
-              className="block w-full px-5 py-3.5 text-center text-sm font-medium transition hover:-translate-y-0.5"
-              style={{
-                background: theme.button,
-                color: theme.buttonText,
-                borderRadius: theme.radius,
-                border: `1px solid ${theme.muted}`,
-              }}
+              className="jl-button relative flex w-full items-center justify-center px-12 py-3 text-center text-sm font-medium transition hover:-translate-y-0.5"
               data-link-id={link.id}
             >
+              {link.thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={link.thumbnailUrl}
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="absolute left-2 top-1/2 size-8 -translate-y-1/2 rounded-[calc(var(--jl-radius)/2)] object-cover"
+                />
+              )}
               {link.title}
             </a>
           </li>
         ))}
-        {profile.links.length === 0 && (
-          <li className="text-center text-sm" style={{ color: theme.muted }}>
-            No links yet.
-          </li>
-        )}
+        {profile.links.length === 0 && <li className="jl-muted text-center text-sm">No links yet.</li>}
       </ul>
 
-      <p className="mt-auto pt-12 text-xs" style={{ color: theme.muted }}>
-        Made with JuLinks
-      </p>
+      <p className="jl-muted mt-auto pt-12 text-xs">Made with JuLinks</p>
     </div>
   );
+}
+
+/** A stand-in profile for showing a theme on its own (gallery cards, preset chips). */
+export function sampleProfile(theme: PublicTheme): PublicProfileData {
+  return {
+    username: "yourname",
+    displayName: "Your Name",
+    bio: "A line about you.",
+    avatarUrl: null,
+    theme,
+    links: [
+      { id: "s1", title: "Portfolio", url: "#", thumbnailUrl: null },
+      { id: "s2", title: "Blog", url: "#", thumbnailUrl: null },
+      { id: "s3", title: "Say hello", url: "#", thumbnailUrl: null },
+    ],
+  };
 }

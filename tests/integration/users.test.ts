@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
 import { authenticate, createUser, getPublicProfile, UniqueViolation, updateProfile } from "@/lib/data/users";
 import { createLink, updateLink } from "@/lib/data/links";
+import { DEFAULT_PRESET } from "@/lib/themes";
 import { makeUser } from "./helpers";
 
 describe("createUser", () => {
@@ -35,17 +36,18 @@ describe("getPublicProfile", () => {
     const second = await createLink(user.id, { title: "Second", url: "https://b.example" });
     const hidden = await createLink(user.id, { title: "Hidden", url: "https://c.example" });
     await updateLink(user.id, hidden.id, { enabled: false });
-    await updateProfile(user.id, { displayName: "Ada", bio: "Hi", theme: "paper" });
+    await updateProfile(user.id, { displayName: "Ada", bio: "Hi" });
 
     const profile = await getPublicProfile("ada");
     expect(profile).toEqual({
       username: "ada",
       displayName: "Ada",
       bio: "Hi",
-      theme: "paper",
+      avatarUrl: null,
+      theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
       links: [
-        { id: first.id, title: "First", url: "https://a.example" },
-        { id: second.id, title: "Second", url: "https://b.example" },
+        { id: first.id, title: "First", url: "https://a.example", thumbnailUrl: null },
+        { id: second.id, title: "Second", url: "https://b.example", thumbnailUrl: null },
       ],
     });
     expect(await getPublicProfile("nobody")).toBeNull();

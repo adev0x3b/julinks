@@ -1,87 +1,195 @@
-/** Visual themes for public pages. Pure data so both server and client can import it. */
-export type Theme = {
-  id: string;
-  name: string;
-  /** Page background (CSS). */
+import type { CSSProperties } from "react";
+
+/**
+ * A theme is a small set of design tokens stored as JSON on a `themes` row.
+ * Pure data and pure functions here so the server (public page), the client
+ * (live preview, theme studio) and the tests share one definition.
+ */
+export const RADII = {
+  none: "0px",
+  small: "6px",
+  medium: "14px",
+  pill: "9999px",
+} as const;
+
+export const FONTS = {
+  sans: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  serif: 'Georgia, "Iowan Old Style", "Times New Roman", Times, serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace',
+  rounded: 'ui-rounded, "Hiragino Maru Gothic ProN", Quicksand, Comfortaa, Manrope, system-ui, sans-serif',
+} as const;
+
+export const BUTTON_STYLES = ["solid", "outline", "glass"] as const;
+
+export type Radius = keyof typeof RADII;
+export type Font = keyof typeof FONTS;
+export type ButtonStyle = (typeof BUTTON_STYLES)[number];
+
+export type ThemeTokens = {
+  /** Page background colour (#rrggbb). */
   background: string;
-  /** Text colour for name and bio. */
+  /** Second colour of a diagonal gradient, or null for a flat background. */
+  backgroundEnd: string | null;
+  /** Name, bio and link text. */
   text: string;
-  /** Secondary text colour. */
+  /** Handle, captions, empty state. */
   muted: string;
-  /** Link button background. */
+  /** Link button colour; how it is used depends on buttonStyle. */
   button: string;
-  /** Link button text. */
   buttonText: string;
-  /** Link button border radius. */
-  radius: string;
-  /** Hover transform / shadow. */
-  buttonHover: string;
+  buttonStyle: ButtonStyle;
+  radius: Radius;
+  font: Font;
+  /** Darkening (0 to 90 percent) laid over a background image to keep text readable. */
+  overlay: number;
 };
 
-export const THEMES = [
+export type Preset = { id: string; name: string; tokens: ThemeTokens };
+
+/** The built-in starting points. Immutable; users copy one into their own theme and edit the copy. */
+export const PRESETS: readonly Preset[] = [
   {
     id: "midnight",
     name: "Midnight",
-    background: "linear-gradient(160deg, #0f172a 0%, #1e1b4b 100%)",
-    text: "#f8fafc",
-    muted: "#a5b4fc",
-    button: "rgba(255,255,255,0.08)",
-    buttonText: "#f8fafc",
-    radius: "9999px",
-    buttonHover: "rgba(255,255,255,0.16)",
+    tokens: {
+      background: "#0f172a",
+      backgroundEnd: "#1e1b4b",
+      text: "#f8fafc",
+      muted: "#a5b4fc",
+      button: "#ffffff",
+      buttonText: "#f8fafc",
+      buttonStyle: "glass",
+      radius: "pill",
+      font: "sans",
+      overlay: 30,
+    },
   },
   {
     id: "sunrise",
     name: "Sunrise",
-    background: "linear-gradient(160deg, #fff7ed 0%, #fecdd3 100%)",
-    text: "#431407",
-    muted: "#9a3412",
-    button: "#fb923c",
-    buttonText: "#431407",
-    radius: "14px",
-    buttonHover: "#f97316",
+    tokens: {
+      background: "#fff7ed",
+      backgroundEnd: "#fecdd3",
+      text: "#431407",
+      muted: "#9a3412",
+      button: "#fb923c",
+      buttonText: "#431407",
+      buttonStyle: "solid",
+      radius: "medium",
+      font: "rounded",
+      overlay: 20,
+    },
   },
   {
     id: "forest",
     name: "Forest",
-    background: "linear-gradient(160deg, #052e16 0%, #14532d 100%)",
-    text: "#ecfdf5",
-    muted: "#86efac",
-    button: "#166534",
-    buttonText: "#ecfdf5",
-    radius: "6px",
-    buttonHover: "#15803d",
+    tokens: {
+      background: "#052e16",
+      backgroundEnd: "#14532d",
+      text: "#ecfdf5",
+      muted: "#86efac",
+      button: "#166534",
+      buttonText: "#ecfdf5",
+      buttonStyle: "solid",
+      radius: "small",
+      font: "serif",
+      overlay: 40,
+    },
   },
   {
     id: "paper",
     name: "Paper",
-    background: "#fafaf9",
-    text: "#1c1917",
-    muted: "#57534e",
-    button: "#ffffff",
-    buttonText: "#1c1917",
-    radius: "4px",
-    buttonHover: "#f5f5f4",
+    tokens: {
+      background: "#fafaf9",
+      backgroundEnd: null,
+      text: "#1c1917",
+      muted: "#57534e",
+      button: "#1c1917",
+      buttonText: "#1c1917",
+      buttonStyle: "outline",
+      radius: "none",
+      font: "serif",
+      overlay: 10,
+    },
   },
   {
     id: "neon",
     name: "Neon",
-    background: "#09090b",
-    text: "#fafafa",
-    muted: "#a3e635",
-    button: "transparent",
-    buttonText: "#a3e635",
-    radius: "0px",
-    buttonHover: "rgba(163,230,53,0.15)",
+    tokens: {
+      background: "#09090b",
+      backgroundEnd: null,
+      text: "#fafafa",
+      muted: "#a3e635",
+      button: "#a3e635",
+      buttonText: "#a3e635",
+      buttonStyle: "outline",
+      radius: "none",
+      font: "mono",
+      overlay: 50,
+    },
   },
-] as const satisfies readonly Theme[];
+];
 
-export const THEME_IDS = THEMES.map((t) => t.id) as [Theme["id"], ...Theme["id"][]];
+export const DEFAULT_PRESET = PRESETS[0];
 
-export type ThemeId = (typeof THEMES)[number]["id"];
+export function getPreset(id: string): Preset | undefined {
+  return PRESETS.find((p) => p.id === id);
+}
 
-export const DEFAULT_THEME: ThemeId = "midnight";
+export const HEX_COLOUR = /^#[0-9a-f]{6}$/;
 
-export function getTheme(id: string): Theme {
-  return THEMES.find((t) => t.id === id) ?? THEMES[0];
+/** `#rrggbb` plus an alpha channel, as 8-digit hex. */
+export function withAlpha(hex: string, alpha: number): string {
+  const a = Math.round(Math.min(1, Math.max(0, alpha)) * 255)
+    .toString(16)
+    .padStart(2, "0");
+  return `${hex}${a}`;
+}
+
+/** Perceived luminance, 0 (black) to 1 (white), for choosing readable defaults. */
+export function luminance(hex: string): number {
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+export function pageBackground(tokens: ThemeTokens): string {
+  return tokens.backgroundEnd
+    ? `linear-gradient(160deg, ${tokens.background} 0%, ${tokens.backgroundEnd} 100%)`
+    : tokens.background;
+}
+
+type ThemeVars = CSSProperties & Record<`--jl-${string}`, string>;
+
+/**
+ * Everything the public page needs, as CSS custom properties on its root
+ * element. Values are built only from validated tokens (hex colours, enum
+ * keys, a bounded number) and an image URL the app generated itself, so no
+ * user-controlled string ever reaches a style attribute unchecked.
+ */
+export function themeStyle(tokens: ThemeTokens, backgroundImageUrl: string | null = null): ThemeVars {
+  const base = pageBackground(tokens);
+  const overlay = withAlpha("#000000", tokens.overlay / 100);
+  const background = backgroundImageUrl
+    ? `linear-gradient(${overlay}, ${overlay}), url("${backgroundImageUrl}") center / cover no-repeat, ${base}`
+    : base;
+  const button = {
+    solid: { bg: tokens.button, border: "transparent", shadow: "0 1px 2px rgba(0,0,0,0.12)" },
+    outline: { bg: "transparent", border: tokens.button, shadow: "none" },
+    glass: { bg: withAlpha(tokens.button, 0.12), border: withAlpha(tokens.button, 0.3), shadow: "none" },
+  }[tokens.buttonStyle];
+  return {
+    "--jl-bg": background,
+    "--jl-text": tokens.text,
+    "--jl-muted": tokens.muted,
+    "--jl-btn-bg": button.bg,
+    "--jl-btn-border": button.border,
+    "--jl-btn-shadow": button.shadow,
+    "--jl-btn-text": tokens.buttonText,
+    "--jl-radius": RADII[tokens.radius],
+    "--jl-font": FONTS[tokens.font],
+  };
 }

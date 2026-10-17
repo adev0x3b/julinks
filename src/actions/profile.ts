@@ -18,7 +18,6 @@ export async function saveProfile(_prev: ProfileFormState, formData: FormData): 
   const parsed = profileSchema.safeParse({
     displayName: formData.get("displayName"),
     bio: formData.get("bio"),
-    theme: formData.get("theme"),
   });
   if (!parsed.success) {
     return { errors: fieldErrors(parsed.error) };

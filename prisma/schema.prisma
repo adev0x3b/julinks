@@ -1,4 +1,5 @@
-// JuLinks data model. Three tables: users, their links, and the clicks those links receive.
+// JuLinks data model: users, their links, the clicks those links receive, and themes.
+// Images (avatars, link thumbnails, theme backgrounds) live in object storage; rows keep the key.
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -15,10 +16,14 @@ model User {
   passwordHash String
   displayName  String
   bio          String   @default("")
-  theme        String   @default("midnight")
+  avatarKey    String?
+  /// The theme shown on the public page; null falls back to the default preset.
+  themeId      String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   links        Link[]
+  theme        Theme?   @relation("activeTheme", fields: [themeId], references: [id], onDelete: SetNull)
+  themes       Theme[]  @relation("ownedThemes")
 
   @@map("users")
 }
@@ -30,6 +35,7 @@ model Link {
   url       String
   position  Int
   enabled   Boolean  @default(true)
+  thumbnailKey String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -48,4 +54,27 @@ model Click {
 
   @@index([linkId, createdAt])
   @@map("clicks")
+}
+
+/// A user's theme: design tokens as JSON (see src/lib/themes.ts) plus an optional
+/// background image. Applying someone else's public theme copies it, so every
+/// theme has exactly one owner and editing or deleting it affects nobody else.
+model Theme {
+  id            String    @id @default(cuid())
+  ownerId       String
+  name          String
+  tokens        Json
+  backgroundKey String?
+  isPublic      Boolean   @default(false)
+  publishedAt   DateTime?
+  /// The public theme this one was copied from, for attribution in the studio.
+  forkedFromId  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  owner         User      @relation("ownedThemes", fields: [ownerId], references: [id], onDelete: Cascade)
+  usedBy        User[]    @relation("activeTheme")
+
+  @@index([ownerId, updatedAt])
+  @@index([isPublic, publishedAt])
+  @@map("themes")
 }

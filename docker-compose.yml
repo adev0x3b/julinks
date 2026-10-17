@@ -1,5 +1,5 @@
 # One command demo: `docker compose up --build`, then open http://localhost:${WEB_PORT:-3000}
-# Demo profile: http://localhost:3000/ada  (login ada@example.com / analytical-engine)
+# Demo profiles: http://localhost:3000/ada and /grace  (login ada@example.com / analytical-engine)
 services:
   db:
     image: postgres:16-alpine
@@ -15,6 +15,21 @@ services:
       timeout: 3s
       retries: 20
 
+  # Object storage for avatars, link pictures and theme backgrounds, behind the S3 API
+  # (SeaweedFS, single node: master + volume + filer + S3 gateway on 8333). The app creates
+  # the bucket on first use. Swap this for S3/R2 by changing the S3_* variables. No credentials
+  # are enforced here and the port is not published; pass `-s3.config` with identities for real use.
+  s3:
+    image: chrislusf/seaweedfs:4.48
+    command: server -s3 -dir=/data -volume.max=10 -master.volumeSizeLimitMB=256
+    volumes:
+      - s3data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8333/ >/dev/null 2>&1 || wget -qO- http://localhost:9333/cluster/status >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
   # Runs the migrations and the demo seed once, then exits; web waits for it.
   migrate:
     build:
@@ -22,8 +37,14 @@ services:
       target: migrate
     environment:
       DATABASE_URL: postgresql://julinks:julinks@db:5432/julinks
+      S3_ENDPOINT: http://s3:8333
+      S3_BUCKET: julinks
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-julinks}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-julinks-secret}
     depends_on:
       db:
+        condition: service_healthy
+      s3:
         condition: service_healthy
 
   web:
@@ -33,13 +54,20 @@ services:
     environment:
       DATABASE_URL: postgresql://julinks:julinks@db:5432/julinks
       SESSION_SECRET: ${SESSION_SECRET:-compose-demo-secret-change-me-for-anything-real}
+      S3_ENDPOINT: http://s3:8333
+      S3_BUCKET: julinks
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-julinks}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-julinks-secret}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:
       db:
+        condition: service_healthy
+      s3:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
 
 volumes:
   pgdata:
+  s3data:

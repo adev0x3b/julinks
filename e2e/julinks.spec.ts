@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import sharp from "sharp";
 
 const run = Date.now().toString(36);
 const user = {
@@ -16,6 +17,22 @@ async function signup(page: Page) {
   await page.getByLabel("Password").fill(user.password);
   await page.getByRole("button", { name: "Create my page" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
+}
+
+async function login(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(user.email);
+  await page.getByLabel("Password").fill(user.password);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+}
+
+/** A solid-colour PNG made on the fly, so the repo carries no binary fixtures. */
+async function pngFile(name: string, width: number, height: number, background: string) {
+  const buffer = await sharp({ create: { width, height, channels: 3, background } })
+    .png()
+    .toBuffer();
+  return { name, mimeType: "image/png", buffer };
 }
 
 async function addLink(page: Page, title: string, url: string) {
@@ -72,16 +89,122 @@ test("signup, edit links and profile, and see the public page update", async ({ 
   await row.getByRole("button", { name: "Save" }).click();
   await expect(page.getByTestId("link-row").filter({ hasText: "My new blog" })).toBeVisible();
 
-  // Profile: display name and theme.
+  // Profile: display name and bio.
   await page.getByLabel("Display name").fill("Ada Two");
   await page.getByLabel("Bio").fill("Testing all the things");
-  await page.getByText("Sunrise", { exact: true }).click();
   await page.getByRole("button", { name: "Save profile" }).click();
   await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   await page.goto(`/${user.username}`);
   await expect(page.getByRole("heading", { name: "Ada Two" })).toBeVisible();
   await expect(page.getByText("Testing all the things")).toBeVisible();
-  await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "sunrise");
+  await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Midnight");
+});
+
+test("pictures: avatar and link thumbnails are stored, served and shown on the public page", async ({ page }) => {
+  await login(page);
+
+  // Avatar: choosing a file uploads it; the editor and the public page show the stored WebP.
+  await page.getByLabel("Upload avatar").setInputFiles(await pngFile("avatar.png", 300, 200, "#8800ff"));
+  const avatar = page.getByTestId("avatar-image");
+  await expect(avatar).toBeVisible();
+  const avatarSrc = (await avatar.getAttribute("src"))!;
+  expect(avatarSrc).toMatch(/^\/img\/avatars\/[a-z0-9]+\/[a-f0-9]{24}\.webp$/);
+  const served = await page.request.get(avatarSrc);
+  expect(served.status()).toBe(200);
+  expect(served.headers()["content-type"]).toBe("image/webp");
+  expect(served.headers()["cache-control"]).toContain("immutable");
+
+  // A file that is not an image is refused with a message.
+  await page.getByLabel("Upload avatar").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
+  await expect(page.getByText("Upload a PNG, JPEG or WebP image")).toBeVisible();
+
+  // Link thumbnail.
+  await page.getByLabel("Picture file for My new blog").setInputFiles(await pngFile("thumb.png", 64, 64, "#00aa55"));
+  await expect(page.getByTestId("link-thumbnail")).toBeVisible();
+
+  await page.goto(`/${user.username}`);
+  await expect(page.locator("img.jl-avatar")).toHaveAttribute("src", avatarSrc);
+  await expect(page.getByRole("link", { name: "My new blog" }).locator("img")).toHaveAttribute("src", /^\/img\/thumbnails\//);
+
+  // Remove the avatar: initials come back.
+  await page.goto("/dashboard");
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByTestId("avatar-image")).toHaveCount(0);
+  await page.goto(`/${user.username}`);
+  await expect(page.locator("img.jl-avatar")).toHaveCount(0);
+
+  // Unknown or malformed keys are 404s, never errors.
+  expect((await page.request.get("/img/avatars/x/000000000000000000000000.webp")).status()).toBe(404);
+  expect((await page.request.get("/img/../etc/passwd")).status()).toBe(404);
+});
+
+test("themes: start from a preset, customise, publish, and copy from the gallery", async ({ page }) => {
+  await login(page);
+  await page.goto("/dashboard/appearance");
+  await expect(page.getByText("Your page uses the default look")).toBeVisible();
+
+  // Start from Sunrise: a theme of our own, active at once.
+  await page.getByRole("button", { name: "Sunrise" }).click();
+  await expect(page.getByTestId("theme-card")).toHaveCount(1);
+  await expect(page.getByTestId("theme-card").first()).toContainText("Active");
+  await page.goto(`/${user.username}`);
+  await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Sunrise");
+
+  // Customise it: name, a colour, corners, a background image, then save.
+  await page.goto("/dashboard/appearance");
+  await page.getByLabel("Name", { exact: true }).fill("Sunset Mono");
+  await page.getByLabel("Background", { exact: true }).fill("#112233");
+  await page.getByLabel("Corners").selectOption("none");
+  await page.getByLabel("Font").selectOption("mono");
+  const preview = page.locator("[data-theme]");
+  await expect(preview).toHaveAttribute("data-theme", "Sunset Mono");
+  await expect(preview).toHaveCSS("--jl-radius", "0px");
+  await page.getByLabel("Upload background image").setInputFiles(await pngFile("bg.png", 400, 300, "#ffcc00"));
+  await expect(page.getByTestId("background-image")).toBeVisible();
+  await page.getByRole("button", { name: "Save theme" }).click();
+  await expect(page.getByText("Theme saved")).toBeVisible();
+
+  await page.goto(`/${user.username}`);
+  const pub = page.locator("[data-theme]");
+  await expect(pub).toHaveAttribute("data-theme", "Sunset Mono");
+  await expect(pub).toHaveCSS("--jl-radius", "0px");
+  const bg = await pub.evaluate((el) => getComputedStyle(el).getPropertyValue("--jl-bg"));
+  expect(bg).toContain('url("/img/backgrounds/');
+  expect(bg).toContain("#112233");
+
+  // Publish it: it appears in the gallery with attribution.
+  await page.goto("/dashboard/appearance");
+  await page.getByRole("button", { name: "Publish Sunset Mono" }).click();
+  await expect(page.getByTestId("theme-card").first()).toContainText("Public");
+  await page.goto("/themes");
+  const card = page.getByTestId("gallery-card").filter({ hasText: "Sunset Mono" });
+  await expect(card).toBeVisible();
+  await expect(card).toContainText(`@${user.username}`);
+  // The seeded demo themes are there too.
+  await expect(page.getByTestId("gallery-card").filter({ hasText: "Poetical Science" })).toBeVisible();
+
+  // Copy a seeded theme: it becomes ours, active, with the background copied under our prefix.
+  await page.getByRole("button", { name: "Use Poetical Science" }).click();
+  await expect(page).toHaveURL(/\/dashboard\/appearance\?theme=/);
+  await expect(page.getByTestId("theme-card")).toHaveCount(2);
+  const copied = page.getByTestId("theme-card").filter({ hasText: "Poetical Science" });
+  await expect(copied).toContainText("Active");
+  await page.goto(`/${user.username}`);
+  await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Poetical Science");
+  const copiedBg = await page.locator("[data-theme]").evaluate((el) => getComputedStyle(el).getPropertyValue("--jl-bg"));
+  expect(copiedBg).toContain('url("/img/backgrounds/');
+
+  // Unpublish and delete: gallery and page follow.
+  await page.goto("/dashboard/appearance");
+  await page.getByRole("button", { name: "Unpublish Sunset Mono" }).click();
+  await expect(page.getByTestId("theme-card").filter({ hasText: "Sunset Mono" })).not.toContainText("Public");
+  page.once("dialog", (d) => d.accept());
+  await page.getByRole("button", { name: "Delete Poetical Science" }).click();
+  await expect(page.getByTestId("theme-card")).toHaveCount(1);
+  await page.goto("/themes");
+  await expect(page.getByTestId("gallery-card").filter({ hasText: "Sunset Mono" })).toHaveCount(0);
+  await page.goto(`/${user.username}`);
+  await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Midnight");
 });
 
 test("clicks redirect, are counted, and show up in stats", async ({ page }) => {

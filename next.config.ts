@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
+  experimental: {
+    // Image uploads go through Server Actions; the default limit is 1 MB.
+    serverActions: { bodySizeLimit: "6mb" },
+  },
   turbopack: {
     root: process.cwd(),
     rules: {

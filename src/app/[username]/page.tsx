@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { PublicProfile } from "@/components/PublicProfile";
 import { profileTag } from "@/lib/cache-tags";
 import { getPublicProfile } from "@/lib/data/users";
-import { getTheme } from "@/lib/themes";
+import { DEFAULT_PRESET, pageBackground } from "@/lib/themes";
 import { RESERVED_USERNAMES } from "@/lib/validation";
 
 /**
@@ -51,6 +51,5 @@ async function Profile({ params }: Pick<PageProps<"/[username]">, "params">) {
 
 /** Neutral placeholder in the default theme while the profile streams in. */
 function Shell() {
-  const theme = getTheme("midnight");
-  return <div className="min-h-full w-full flex-1" style={{ background: theme.background }} aria-hidden />;
+  return <div className="min-h-full w-full flex-1" style={{ background: pageBackground(DEFAULT_PRESET.tokens) }} aria-hidden />;
 }
