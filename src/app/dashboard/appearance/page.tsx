@@ -1,15 +1,13 @@
-import { redirect } from "next/navigation";
 import { ThemeStudio } from "@/components/themes/ThemeStudio";
 import { listLinks } from "@/lib/data/links";
 import { listOwnThemes } from "@/lib/data/themes";
 import { imageUrl } from "@/lib/image-url";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Appearance" };
 
 export default async function AppearancePage({ searchParams }: PageProps<"/dashboard/appearance">) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireUser();
   const [{ theme, error }, themes, links] = await Promise.all([searchParams, listOwnThemes(user.id), listLinks(user.id)]);
   return (
     <ThemeStudio

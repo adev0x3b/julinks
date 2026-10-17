@@ -1,15 +1,13 @@
-import { redirect } from "next/navigation";
 import { Editor } from "@/components/editor/Editor";
 import { listLinks } from "@/lib/data/links";
 import { getActiveTheme } from "@/lib/data/themes";
 import { imageUrl } from "@/lib/image-url";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Your links" };
 
 export default async function DashboardPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireUser();
   const [links, theme] = await Promise.all([listLinks(user.id), getActiveTheme(user.id)]);
   return (
     <Editor

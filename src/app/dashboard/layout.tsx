@@ -1,9 +1,8 @@
 import { Suspense } from "react";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { logout } from "@/actions/auth";
 import { Logo } from "@/components/Logo";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 // The layout itself stays static; only the header's user-specific part reads the session.
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
@@ -36,8 +35,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
 }
 
 async function UserMenu() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireUser();
   return (
     <div className="flex items-center gap-2 text-sm">
       <a href={`/${user.username}`} target="_blank" rel="noreferrer" className="btn-secondary" data-testid="view-page">

@@ -1,13 +1,11 @@
-import { redirect } from "next/navigation";
 import { DailyClicksChart } from "@/components/DailyClicksChart";
 import { getStats } from "@/lib/data/clicks";
-import { getCurrentUser } from "@/lib/session";
+import { requireUser } from "@/lib/session";
 
 export const metadata = { title: "Stats" };
 
 export default async function StatsPage() {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireUser();
   const stats = await getStats(user.id, 30);
   const topLinks = [...stats.perLink].sort((a, b) => b.clicks - a.clicks);
   const max = Math.max(1, ...topLinks.map((l) => l.clicks));

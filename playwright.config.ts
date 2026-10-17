@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_SESSION_SECRET } from "./e2e/session-secret";
 
 const port = Number(process.env.E2E_PORT ?? 3100);
 const databaseUrl = process.env.E2E_DATABASE_URL ?? "postgresql://linkdeck:linkdeck@127.0.0.1:5432/linkdeck_e2e";
@@ -52,7 +53,7 @@ export default defineConfig({
       timeout: 120_000,
       env: {
         DATABASE_URL: databaseUrl,
-        SESSION_SECRET: "e2e-session-secret-that-is-long-enough-123456",
+        SESSION_SECRET: E2E_SESSION_SECRET,
         ...s3Env,
       },
     },

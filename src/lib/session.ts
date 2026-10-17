@@ -1,11 +1,19 @@
 import "server-only";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 export { SESSION_COOKIE };
+/**
+ * Where a request with a cookie that no longer maps to a user is sent. The route
+ * clears the cookie before showing /login; sending such a request straight to
+ * /login would loop, because the proxy bounces any cookie-carrying request for
+ * /login back to /dashboard.
+ */
+export const SESSION_EXPIRED_PATH = "/login/expired";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 function secretKey(): Uint8Array {
@@ -75,3 +83,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   });
   return user;
 });
+
+/** The current user, or a redirect that clears a stale session cookie and lands on /login. */
+export async function requireUser(): Promise<CurrentUser> {
+  const user = await getCurrentUser();
+  if (!user) redirect(SESSION_EXPIRED_PATH);
+  return user;
+}

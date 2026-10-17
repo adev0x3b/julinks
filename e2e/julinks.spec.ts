@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { SignJWT } from "jose";
 import sharp from "sharp";
+import { E2E_SESSION_SECRET } from "./session-secret";
 
 const run = Date.now().toString(36);
 const user = {
@@ -273,4 +275,24 @@ test("auth guards and 404s", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
   const click = await page.request.get("/l/does-not-exist", { maxRedirects: 0 });
   expect(click.status()).toBe(404);
+});
+
+test("a session cookie for a user that no longer exists is cleared instead of looping", async ({ page, context }) => {
+  // The token is validly signed, as after a database reset that kept SESSION_SECRET.
+  const token = await new SignJWT({ sub: "no-such-user" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime("1h")
+    .sign(new TextEncoder().encode(E2E_SESSION_SECRET));
+  await context.addCookies([{ name: "julinks_session", value: token, domain: "127.0.0.1", path: "/" }]);
+
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/login\?expired=1$/);
+  await expect(page.getByRole("status")).toHaveText("Your session has expired. Please log in again.");
+  const cookies = await context.cookies();
+  expect(cookies.find((c) => c.name === "julinks_session")).toBeUndefined();
+
+  // Without the cookie, /login renders normally and /dashboard bounces to it.
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/login$/);
 });
