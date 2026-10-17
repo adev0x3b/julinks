@@ -22,9 +22,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # A placeholder URL: the build never connects, but the Prisma client needs the variable to exist.
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx next build
 
+# The generated Prisma client is already in the deps stage: `npm ci` ran `prisma generate`.
 FROM deps AS migrate
 COPY prisma ./prisma
-COPY src/generated ./src/generated
 COPY tsconfig.json ./
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts"]
 
