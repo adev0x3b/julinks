@@ -117,7 +117,7 @@ test("clicks redirect, are counted, and show up in stats", async ({ page }) => {
   await expect(page.getByRole("link", { name: "GitHub" })).toHaveCount(0);
 });
 
-test("reordering with the keyboard changes the public order", async ({ page }) => {
+test("dragging a link changes the public order", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(user.email);
   await page.getByLabel("Password").fill(user.password);
@@ -125,11 +125,15 @@ test("reordering with the keyboard changes the public order", async ({ page }) =
   await page.getByRole("switch", { name: "Enable GitHub" }).click();
   await expect(page.getByRole("switch", { name: "Disable GitHub" })).toBeVisible();
 
+  // Drag the GitHub row's handle onto the first row (PointerSensor activates after 4px).
   const handle = page.getByRole("button", { name: "Drag to reorder GitHub" });
-  await handle.focus();
-  await page.keyboard.press("Space");
-  await page.keyboard.press("ArrowUp");
-  await page.keyboard.press("Space");
+  const from = (await handle.boundingBox())!;
+  const target = (await page.getByTestId("link-row").first().boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 - 10, { steps: 3 });
+  await page.mouse.move(from.x + from.width / 2, target.y + 4, { steps: 12 });
+  await page.mouse.up();
   await expect(page.getByTestId("link-row").first()).toContainText("GitHub");
   await expect(page.getByTestId("order-status")).toHaveText("Order saved");
 
