@@ -10,10 +10,14 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Self-contained server for the Docker image (see Dockerfile).
   output: "standalone",
+  // Pin the project root: the CI runner checks out into a subfolder of another checkout,
+  // and Next would otherwise look for a lockfile further up.
+  outputFileTracingRoot: process.cwd(),
   cacheComponents: true,
   partialPrefetching: true,
   poweredByHeader: false,
   turbopack: {
+    root: process.cwd(),
     rules: {
       "*.css": {
         loaders: ["@tailwindcss/turbopack"],
