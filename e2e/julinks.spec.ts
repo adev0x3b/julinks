@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { SignJWT } from "jose";
 import sharp from "sharp";
-import { E2E_SESSION_SECRET } from "./session-secret";
+import { E2E_SESSION_SECRET } from "../playwright.config";
 
 const run = Date.now().toString(36);
 const user = {
