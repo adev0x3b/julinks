@@ -11,7 +11,13 @@ export default async function DashboardPage() {
   const [links, theme] = await Promise.all([listLinks(user.id), getActiveTheme(user.id)]);
   return (
     <Editor
-      user={{ username: user.username, displayName: user.displayName, bio: user.bio, avatarUrl: imageUrl(user.avatarKey) }}
+      user={{
+        username: user.username,
+        displayName: user.displayName,
+        bio: user.bio,
+        avatarUrl: imageUrl(user.avatarKey),
+        avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
+      }}
       theme={{ name: theme.name, tokens: theme.tokens, backgroundUrl: imageUrl(theme.backgroundKey) }}
       links={links.map((l) => ({
         id: l.id,
@@ -20,6 +26,8 @@ export default async function DashboardPage() {
         enabled: l.enabled,
         clicks: l._count.clicks,
         thumbnailUrl: imageUrl(l.thumbnailKey),
+        imageLayout: l.imageLayout,
+        imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
       }))}
     />
   );

@@ -3,6 +3,7 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import type { PublicProfileData } from "@/components/PublicProfile";
 import { imageUrl } from "@/lib/image-url";
 import { DEFAULT_PRESET, type ThemeTokens } from "@/lib/themes";
+import type { ImageFocus } from "@/lib/validation";
 
 export type NewUser = { username: string; email: string; password: string; displayName: string };
 
@@ -67,13 +68,18 @@ export async function updateProfile(userId: string, input: ProfileUpdate) {
   });
 }
 
-/** Sets or clears the avatar; returns the previous key so the caller can delete the old object. */
+/** Sets or clears the avatar (re-centred); returns the previous key so the caller can delete the old object. */
 export async function setAvatar(userId: string, avatarKey: string | null): Promise<string | null> {
   return prisma.$transaction(async (tx) => {
     const current = await tx.user.findUniqueOrThrow({ where: { id: userId }, select: { avatarKey: true } });
-    await tx.user.update({ where: { id: userId }, data: { avatarKey } });
+    await tx.user.update({ where: { id: userId }, data: { avatarKey, avatarFocusX: 50, avatarFocusY: 50 } });
     return current.avatarKey;
   });
+}
+
+/** Where the avatar is centred inside its circle. */
+export async function setAvatarFocus(userId: string, focus: ImageFocus) {
+  await prisma.user.update({ where: { id: userId }, data: { avatarFocusX: focus.x, avatarFocusY: focus.y } });
 }
 
 /** Everything the public page needs, or null when the username is unknown. */
@@ -85,11 +91,13 @@ export async function getPublicProfile(username: string): Promise<PublicProfileD
       displayName: true,
       bio: true,
       avatarKey: true,
+      avatarFocusX: true,
+      avatarFocusY: true,
       theme: { select: { name: true, tokens: true, backgroundKey: true } },
       links: {
         where: { enabled: true },
         orderBy: { position: "asc" },
-        select: { id: true, title: true, url: true, thumbnailKey: true },
+        select: { id: true, title: true, url: true, thumbnailKey: true, imageLayout: true, imageFocusX: true, imageFocusY: true },
       },
     },
   });
@@ -102,7 +110,15 @@ export async function getPublicProfile(username: string): Promise<PublicProfileD
     displayName: user.displayName,
     bio: user.bio,
     avatarUrl: imageUrl(user.avatarKey),
+    avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
     theme,
-    links: user.links.map((l) => ({ id: l.id, title: l.title, url: l.url, thumbnailUrl: imageUrl(l.thumbnailKey) })),
+    links: user.links.map((l) => ({
+      id: l.id,
+      title: l.title,
+      url: l.url,
+      thumbnailUrl: imageUrl(l.thumbnailKey),
+      imageLayout: l.imageLayout,
+      imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
+    })),
   };
 }

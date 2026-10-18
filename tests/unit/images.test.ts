@@ -9,10 +9,15 @@ async function png(width: number, height: number) {
 }
 
 describe("processImage", () => {
-  it("crops avatars square and re-encodes as WebP", async () => {
-    const out = await processImage(await png(900, 300), "avatar");
-    expect(out).toMatchObject({ contentType: "image/webp", width: 512, height: 512 });
+  it("keeps an avatar's shape (the page crops around the focal point) and re-encodes as WebP", async () => {
+    const out = await processImage(await png(1536, 512), "avatar");
+    expect(out).toMatchObject({ contentType: "image/webp", width: 768, height: 256 });
     expect((await sharp(out.data).metadata()).format).toBe("webp");
+  });
+
+  it("sizes a link picture for the big card layout and never enlarges", async () => {
+    expect(await processImage(await png(2400, 1200), "thumbnail")).toMatchObject({ width: 1200, height: 600 });
+    expect(await processImage(await png(64, 64), "thumbnail")).toMatchObject({ width: 64, height: 64 });
   });
 
   it("fits backgrounds inside the limit without enlarging small pictures", async () => {

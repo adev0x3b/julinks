@@ -11,8 +11,23 @@ export default async function AppearancePage({ searchParams }: PageProps<"/dashb
   const [{ theme, error }, themes, links] = await Promise.all([searchParams, listOwnThemes(user.id), listLinks(user.id)]);
   return (
     <ThemeStudio
-      user={{ username: user.username, displayName: user.displayName, bio: user.bio, avatarUrl: imageUrl(user.avatarKey) }}
-      links={links.filter((l) => l.enabled).map((l) => ({ id: l.id, title: l.title, url: l.url, thumbnailUrl: imageUrl(l.thumbnailKey) }))}
+      user={{
+        username: user.username,
+        displayName: user.displayName,
+        bio: user.bio,
+        avatarUrl: imageUrl(user.avatarKey),
+        avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
+      }}
+      links={links
+        .filter((l) => l.enabled)
+        .map((l) => ({
+          id: l.id,
+          title: l.title,
+          url: l.url,
+          thumbnailUrl: imageUrl(l.thumbnailKey),
+          imageLayout: l.imageLayout,
+          imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
+        }))}
       themes={themes.map((t) => ({
         id: t.id,
         name: t.name,

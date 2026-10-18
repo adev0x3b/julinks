@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
+import { CENTRE, PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
 import { DEFAULT_PRESET } from "@/lib/themes";
 
 const demo: PublicProfileData = {
@@ -9,12 +9,13 @@ const demo: PublicProfileData = {
   displayName: "Ada Lovelace",
   bio: "Analyst, metaphysician, and founder of scientific computing.",
   avatarUrl: null,
+  avatarFocus: CENTRE,
   theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
   links: [
-    { id: "1", title: "Notes on the Analytical Engine", url: "https://example.com/notes", thumbnailUrl: null },
-    { id: "2", title: "Poetical science", url: "https://example.com/poetry", thumbnailUrl: null },
-    { id: "3", title: "Letters to Babbage", url: "https://example.com/letters", thumbnailUrl: null },
-  ],
+    { id: "1", title: "Notes on the Analytical Engine", url: "https://example.com/notes" },
+    { id: "2", title: "Poetical science", url: "https://example.com/poetry" },
+    { id: "3", title: "Letters to Babbage", url: "https://example.com/letters" },
+  ].map((l) => ({ ...l, thumbnailUrl: null, imageLayout: "thumbnail" as const, imageFocus: CENTRE })),
 };
 
 export default function Home() {

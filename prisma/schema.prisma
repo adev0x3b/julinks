@@ -17,6 +17,9 @@ model User {
   displayName  String
   bio          String   @default("")
   avatarKey    String?
+  /// Focal point of the avatar inside its circle, in percent of the picture (50/50 = centre).
+  avatarFocusX Int      @default(50)
+  avatarFocusY Int      @default(50)
   /// The theme shown on the public page; null falls back to the default preset.
   themeId      String?
   createdAt    DateTime @default(now())
@@ -36,6 +39,11 @@ model Link {
   position  Int
   enabled   Boolean  @default(true)
   thumbnailKey String?
+  /// How the picture shows on the public page: a small thumbnail beside the title, or a big card image above it.
+  imageLayout  ImageLayout @default(thumbnail)
+  /// Focal point of the picture inside its frame, in percent (50/50 = centre).
+  imageFocusX  Int      @default(50)
+  imageFocusY  Int      @default(50)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -43,6 +51,11 @@ model Link {
 
   @@index([userId, position])
   @@map("links")
+}
+
+enum ImageLayout {
+  thumbnail
+  featured
 }
 
 model Click {

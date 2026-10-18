@@ -29,7 +29,7 @@ export const DEMO_USER = {
 type DemoUser = typeof DEMO_USER & {
   avatar: { from: string; to: string };
   theme: { name: string; tokens: ThemeTokens; background: string | null };
-  links: { title: string; url: string; shape: Shape; colour: string }[];
+  links: { title: string; url: string; shape: Shape; colour: string; featured?: boolean; focus?: { x: number; y: number } }[];
   clicks: boolean;
 };
 
@@ -54,7 +54,14 @@ const DEMO_USERS: DemoUser[] = [
       background: blobs(["#c084fc", "#f472b6", "#818cf8"], "#3b0764"),
     },
     links: [
-      { title: "Notes on the Analytical Engine", url: "https://en.wikipedia.org/wiki/Analytical_engine", shape: "ring", colour: "#7e22ce" },
+      {
+        title: "Notes on the Analytical Engine",
+        url: "https://en.wikipedia.org/wiki/Analytical_engine",
+        shape: "ring",
+        colour: "#7e22ce",
+        featured: true,
+        focus: { x: 30, y: 50 },
+      },
       { title: "Poetical science", url: "https://en.wikipedia.org/wiki/Ada_Lovelace", shape: "diamond", colour: "#db2777" },
       { title: "Letters to Babbage", url: "https://en.wikipedia.org/wiki/Charles_Babbage", shape: "bars", colour: "#4f46e5" },
     ],
@@ -112,8 +119,20 @@ async function main() {
 
     await prisma.link.deleteMany({ where: { userId: user.id } });
     for (const [position, link] of demo.links.entries()) {
-      const thumbnailKey = await store("thumbnail", user.id, tileSvg(link.shape, link.colour));
-      await prisma.link.create({ data: { userId: user.id, title: link.title, url: link.url, position, thumbnailKey } });
+      // A featured link gets a wide picture, centred off to one side to show the focal point at work.
+      const thumbnailKey = await store("thumbnail", user.id, link.featured ? bannerSvg(link.shape, link.colour) : tileSvg(link.shape, link.colour));
+      await prisma.link.create({
+        data: {
+          userId: user.id,
+          title: link.title,
+          url: link.url,
+          position,
+          thumbnailKey,
+          imageLayout: link.featured ? "featured" : "thumbnail",
+          imageFocusX: link.focus?.x ?? 50,
+          imageFocusY: link.focus?.y ?? 50,
+        },
+      });
     }
     if (demo.clicks) {
       const links = await prisma.link.findMany({ where: { userId: user.id }, orderBy: { position: "asc" } });
@@ -152,6 +171,11 @@ const SHAPES: Record<Shape, string> = {
 
 function tileSvg(shape: Shape, colour: string) {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160"><rect width="160" height="160" rx="32" fill="${colour}"/>${SHAPES[shape]}</svg>`;
+}
+
+/** A wide picture for a featured link: the tile's shape sits in the left third, so a focal point of 30% keeps it in frame. */
+function bannerSvg(shape: Shape, colour: string) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600"><rect width="1200" height="600" fill="${colour}"/><circle cx="900" cy="300" r="260" fill="#ffffff" fill-opacity="0.12"/><g transform="translate(200 220) scale(1)">${SHAPES[shape]}</g></svg>`;
 }
 
 function blobs(colours: string[], base: string) {

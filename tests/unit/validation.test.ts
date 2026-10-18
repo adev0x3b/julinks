@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { imageFocusSchema, linkImageSchema } from "@/lib/validation";
 import { fieldErrors, linkSchema, linkUrlSchema, signupSchema, themeSchema, themeTokensSchema, usernameSchema } from "@/lib/validation";
 
 describe("usernameSchema", () => {
@@ -103,5 +104,18 @@ describe("themeTokensSchema", () => {
 describe("reserved usernames", () => {
   it.each(["img", "themes", "uploads"])("keeps %s for app routes", (value) => {
     expect(usernameSchema.safeParse(value).success).toBe(false);
+  });
+});
+
+describe("link picture settings", () => {
+  it("accepts a layout with a focal point in percent", () => {
+    expect(linkImageSchema.parse({ layout: "featured", focus: { x: "30", y: 70 } })).toEqual({ layout: "featured", focus: { x: 30, y: 70 } });
+  });
+
+  it("rejects unknown layouts and points outside the picture", () => {
+    expect(linkImageSchema.safeParse({ layout: "huge", focus: { x: 50, y: 50 } }).success).toBe(false);
+    expect(imageFocusSchema.safeParse({ x: 101, y: 50 }).success).toBe(false);
+    expect(imageFocusSchema.safeParse({ x: 10.5, y: 50 }).success).toBe(false);
+    expect(imageFocusSchema.safeParse({ x: -1, y: 50 }).success).toBe(false);
   });
 });
