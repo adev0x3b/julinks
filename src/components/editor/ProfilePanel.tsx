@@ -5,8 +5,9 @@ import { useActionState } from "react";
 import { saveProfile, type ProfileFormState } from "@/actions/profile";
 import { Field } from "@/components/Field";
 import { AvatarUploader } from "./AvatarUploader";
+import type { ImageFocus } from "@/lib/validation";
 
-export type ProfileDraft = { displayName: string; bio: string; avatarUrl: string | null };
+export type ProfileDraft = { displayName: string; bio: string; avatarUrl: string | null; avatarFocus: ImageFocus };
 
 const initial: ProfileFormState = {};
 
@@ -37,7 +38,13 @@ export function ProfilePanel({
       </div>
       <div className="mb-5">
         <p className="label">Photo</p>
-        <AvatarUploader avatarUrl={draft.avatarUrl} initials={initials} onChanged={(avatarUrl) => onChange({ ...draft, avatarUrl })} />
+        <AvatarUploader
+          avatarUrl={draft.avatarUrl}
+          focus={draft.avatarFocus}
+          initials={initials}
+          onChanged={(avatarUrl) => onChange({ ...draft, avatarUrl, avatarFocus: { x: 50, y: 50 } })}
+          onFocusChanged={(avatarFocus) => onChange({ ...draft, avatarFocus })}
+        />
       </div>
       <form action={action} noValidate>
         <div className="grid gap-4 sm:grid-cols-2">

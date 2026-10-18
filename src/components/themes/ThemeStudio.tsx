@@ -6,6 +6,7 @@ import { useState, useTransition } from "react";
 import { createThemeFromPreset, publishTheme, removeTheme, saveTheme, setActiveTheme } from "@/actions/themes";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { PublicProfile, type PublicLink } from "@/components/PublicProfile";
+import type { ImageFocus } from "@/lib/validation";
 import { DEFAULT_PRESET, PRESETS, pageBackground, type ThemeTokens } from "@/lib/themes";
 import { ThemeBuilder } from "./ThemeBuilder";
 import { ThemeSwatch } from "./ThemeSwatch";
@@ -19,7 +20,7 @@ export type StudioTheme = {
   forkedFromId: string | null;
 };
 
-export type StudioUser = { username: string; displayName: string; bio: string; avatarUrl: string | null };
+export type StudioUser = { username: string; displayName: string; bio: string; avatarUrl: string | null; avatarFocus: ImageFocus };
 
 /**
  * The appearance page: your saved themes, the presets to start from, and a
@@ -213,6 +214,7 @@ export function ThemeStudio({
                 displayName: user.displayName,
                 bio: user.bio,
                 avatarUrl: user.avatarUrl,
+                avatarFocus: user.avatarFocus,
                 theme: previewTheme,
                 links,
               }}

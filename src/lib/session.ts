@@ -65,6 +65,8 @@ export type CurrentUser = {
   displayName: string;
   bio: string;
   avatarKey: string | null;
+  avatarFocusX: number;
+  avatarFocusY: number;
   themeId: string | null;
 };
 
@@ -79,7 +81,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!userId) return null;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, themeId: true },
+    select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, avatarFocusX: true, avatarFocusY: true, themeId: true },
   });
   return user;
 });

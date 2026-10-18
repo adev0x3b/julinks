@@ -79,7 +79,8 @@ test("signup, edit links and profile, and see the public page update", async ({ 
   // Disable one: the cached public page must be refreshed.
   await page.goto("/dashboard");
   await page.getByRole("switch", { name: "Disable GitHub" }).click();
-  await expect(page.getByRole("switch", { name: "Enable GitHub" })).toBeVisible();
+  // The switch flips optimistically and stays disabled until the server has saved; navigating earlier would abort the save.
+  await expect(page.getByRole("switch", { name: "Enable GitHub" })).toBeEnabled();
   await page.goto(`/${user.username}`);
   await expect(page.getByRole("list", { name: "Links" }).getByRole("link")).toHaveText(["My blog"]);
 
@@ -102,7 +103,7 @@ test("signup, edit links and profile, and see the public page update", async ({ 
   await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Midnight");
 });
 
-test("pictures: avatar and link thumbnails are stored, served and shown on the public page", async ({ page }) => {
+test("pictures: avatar and link pictures are stored, served, laid out and centred on the public page", async ({ page }) => {
   await login(page);
 
   // Avatar: choosing a file uploads it; the editor and the public page show the stored WebP.
@@ -120,13 +121,37 @@ test("pictures: avatar and link thumbnails are stored, served and shown on the p
   await page.getByLabel("Upload avatar").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
   await expect(page.getByText("Upload a PNG, JPEG or WebP image")).toBeVisible();
 
-  // Link thumbnail.
-  await page.getByLabel("Picture file for My new blog").setInputFiles(await pngFile("thumb.png", 64, 64, "#00aa55"));
+  // Avatar focal point: "Adjust" opens the picker; clicking near the top-left corner moves the point there.
+  await page.getByRole("button", { name: "Adjust" }).click();
+  const avatarArea = page.getByTestId("avatar-adjust").getByTestId("focal-point-area");
+  const avatarBox = (await avatarArea.boundingBox())!;
+  await avatarArea.click({ position: { x: avatarBox.width * 0.1, y: avatarBox.height * 0.2 } });
+  await expect(avatar).toHaveCSS("object-position", "10% 20%");
+  await expect(page.getByTestId("avatar-adjust").getByRole("status")).toHaveText("Saved");
+  await page.getByRole("button", { name: "Done" }).click();
+
+  // Link picture: the square uploads it; the picture then opens its settings.
+  await page.getByLabel("Picture file for My new blog").setInputFiles(await pngFile("thumb.png", 640, 400, "#00aa55"));
   await expect(page.getByTestId("link-thumbnail")).toBeVisible();
+  await page.getByRole("button", { name: "Picture settings for My new blog" }).click();
+  const panel = page.getByTestId("picture-panel");
+  await panel.getByText("Big, above the title").click();
+  await expect(panel.getByLabel(/^Big, above the title/)).toBeChecked();
+  const linkArea = panel.getByTestId("focal-point-area");
+  const linkBox = (await linkArea.boundingBox())!;
+  await linkArea.click({ position: { x: linkBox.width * 0.9, y: linkBox.height * 0.5 } });
+  await expect(panel.getByTestId("focal-point-preview")).toHaveCSS("object-position", "90% 50%");
+  // The live preview switches to the big layout straight away; the settings save after a short pause.
+  await expect(page.locator("[data-layout='featured']").first()).toBeVisible();
+  await expect(panel.getByRole("status")).toHaveText("Saved");
 
   await page.goto(`/${user.username}`);
   await expect(page.locator("img.jl-avatar")).toHaveAttribute("src", avatarSrc);
-  await expect(page.getByRole("link", { name: "My new blog" }).locator("img")).toHaveAttribute("src", /^\/img\/thumbnails\//);
+  await expect(page.locator("img.jl-avatar")).toHaveCSS("object-position", "10% 20%");
+  const blog = page.getByRole("link", { name: "My new blog" });
+  await expect(blog).toHaveAttribute("data-layout", "featured");
+  await expect(blog.locator("img")).toHaveAttribute("src", /^\/img\/thumbnails\//);
+  await expect(blog.locator("img")).toHaveCSS("object-position", "90% 50%");
 
   // Remove the avatar: initials come back.
   await page.goto("/dashboard");

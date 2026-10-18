@@ -16,11 +16,16 @@ export class UnsupportedImage extends Error {
 
 const ACCEPTED_FORMATS = new Set(["png", "jpeg", "webp", "gif"]);
 
-/** Output dimensions per use. Avatars and thumbnails are cropped square; backgrounds keep their shape. */
-const SIZES: Record<ImageKind, { width: number; height?: number; quality: number }> = {
-  avatar: { width: 512, height: 512, quality: 85 },
-  thumbnail: { width: 160, height: 160, quality: 85 },
-  background: { width: 1600, quality: 78 },
+/**
+ * Longest side per use. Pictures keep their shape: the page crops them with
+ * object-fit around the owner's chosen focal point, so a crop at upload time
+ * would throw away exactly the pixels the owner may want to centre on.
+ * A link picture serves both the small thumbnail and the big card image.
+ */
+const SIZES: Record<ImageKind, { max: number; quality: number }> = {
+  avatar: { max: 768, quality: 85 },
+  thumbnail: { max: 1200, quality: 82 },
+  background: { max: 1600, quality: 78 },
 };
 
 export type ProcessedImage = { data: Buffer; contentType: "image/webp"; width: number; height: number };
@@ -37,13 +42,7 @@ export async function processImage(input: Uint8Array, kind: ImageKind): Promise<
   const size = SIZES[kind];
   const { data, info } = await image
     .rotate()
-    .resize({
-      width: size.width,
-      height: size.height,
-      fit: size.height ? "cover" : "inside",
-      withoutEnlargement: !size.height,
-      position: "attention",
-    })
+    .resize({ width: size.max, height: size.max, fit: "inside", withoutEnlargement: true })
     .webp({ quality: size.quality })
     .toBuffer({ resolveWithObject: true });
   return { data, contentType: "image/webp", width: info.width, height: info.height };

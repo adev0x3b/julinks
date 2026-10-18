@@ -86,6 +86,14 @@ export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 export const IMAGE_KINDS = ["avatar", "thumbnail", "background"] as const;
 export type ImageKind = (typeof IMAGE_KINDS)[number];
 
+/** How a link's picture shows on the page, and where its focal point sits (percent of the picture). */
+export const IMAGE_LAYOUTS = ["thumbnail", "featured"] as const;
+export type ImageLayout = (typeof IMAGE_LAYOUTS)[number];
+export type ImageFocus = { x: number; y: number };
+const focusCoordinate = z.coerce.number().int().min(0).max(100);
+export const imageFocusSchema = z.object({ x: focusCoordinate, y: focusCoordinate });
+export const linkImageSchema = z.object({ layout: z.enum(IMAGE_LAYOUTS), focus: imageFocusSchema });
+
 export const reorderSchema = z.array(z.string().min(1)).min(1).max(200);
 
 /** Flattens a zod error into one message per field, the shape the forms render. */

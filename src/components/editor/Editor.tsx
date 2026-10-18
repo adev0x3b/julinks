@@ -7,8 +7,9 @@ import { PublicProfile, type PublicTheme } from "@/components/PublicProfile";
 import { AddLinkForm } from "./AddLinkForm";
 import { LinkList, type EditorLink } from "./LinkList";
 import { ProfilePanel, type ProfileDraft } from "./ProfilePanel";
+import type { ImageFocus } from "@/lib/validation";
 
-export type EditorUser = { username: string; displayName: string; bio: string; avatarUrl: string | null };
+export type EditorUser = { username: string; displayName: string; bio: string; avatarUrl: string | null; avatarFocus: ImageFocus };
 
 /**
  * Owns the editable state of the page so the preview updates as you type and
@@ -18,7 +19,12 @@ export type EditorUser = { username: string; displayName: string; bio: string; a
 export function Editor({ user, theme, links }: { user: EditorUser; theme: PublicTheme; links: EditorLink[] }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [profile, setProfile] = useState<ProfileDraft>({ displayName: user.displayName, bio: user.bio, avatarUrl: user.avatarUrl });
+  const [profile, setProfile] = useState<ProfileDraft>({
+    displayName: user.displayName,
+    bio: user.bio,
+    avatarUrl: user.avatarUrl,
+    avatarFocus: user.avatarFocus,
+  });
   const [items, setItems] = useState(links);
   const [syncedLinks, setSyncedLinks] = useState(links);
   if (links !== syncedLinks) {
@@ -35,7 +41,8 @@ export function Editor({ user, theme, links }: { user: EditorUser; theme: Public
         <section className="card">
           <h2 className="text-base font-semibold">Links</h2>
           <p className="mb-4 text-sm text-stone-500">
-            Drag to reorder. Click the square to give a link a picture. Disabled links stay here but leave your page.
+            Drag to reorder. Click the square to give a link a picture, then choose small or big and where it is centred.
+            Disabled links stay here but leave your page.
           </p>
           <AddLinkForm onAdded={refresh} />
           <LinkList items={items} onChange={setItems} onRefresh={refresh} />
@@ -52,10 +59,11 @@ export function Editor({ user, theme, links }: { user: EditorUser; theme: Public
                 displayName: profile.displayName || user.displayName,
                 bio: profile.bio,
                 avatarUrl: profile.avatarUrl,
+                avatarFocus: profile.avatarFocus,
                 theme,
                 links: items
                   .filter((l) => l.enabled)
-                  .map(({ id, title, url, thumbnailUrl }) => ({ id, title, url, thumbnailUrl })),
+                  .map(({ id, title, url, thumbnailUrl, imageLayout, imageFocus }) => ({ id, title, url, thumbnailUrl, imageLayout, imageFocus })),
               }}
             />
           </PhoneFrame>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { authenticate, createUser, getPublicProfile, UniqueViolation, updateProfile } from "@/lib/data/users";
+import { authenticate, createUser, getPublicProfile, setAvatar, setAvatarFocus, UniqueViolation, updateProfile } from "@/lib/data/users";
 import { createLink, updateLink } from "@/lib/data/links";
 import { DEFAULT_PRESET } from "@/lib/themes";
 import { makeUser } from "./helpers";
@@ -37,20 +37,28 @@ describe("getPublicProfile", () => {
     const hidden = await createLink(user.id, { title: "Hidden", url: "https://c.example" });
     await updateLink(user.id, hidden.id, { enabled: false });
     await updateProfile(user.id, { displayName: "Ada", bio: "Hi" });
+    await setAvatar(user.id, "avatars/u/000000000000000000000000.webp");
+    await setAvatarFocus(user.id, { x: 10, y: 90 });
 
+    const centred = { imageLayout: "thumbnail", imageFocus: { x: 50, y: 50 } };
     const profile = await getPublicProfile("ada");
     expect(profile).toEqual({
       username: "ada",
       displayName: "Ada",
       bio: "Hi",
-      avatarUrl: null,
+      avatarUrl: "/img/avatars/u/000000000000000000000000.webp",
+      avatarFocus: { x: 10, y: 90 },
       theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
       links: [
-        { id: first.id, title: "First", url: "https://a.example", thumbnailUrl: null },
-        { id: second.id, title: "Second", url: "https://b.example", thumbnailUrl: null },
+        { id: first.id, title: "First", url: "https://a.example", thumbnailUrl: null, ...centred },
+        { id: second.id, title: "Second", url: "https://b.example", thumbnailUrl: null, ...centred },
       ],
     });
     expect(await getPublicProfile("nobody")).toBeNull();
+
+    // A new avatar starts centred again.
+    await setAvatar(user.id, "avatars/u/111111111111111111111111.webp");
+    expect((await getPublicProfile("ada"))?.avatarFocus).toEqual({ x: 50, y: 50 });
   });
 });
 

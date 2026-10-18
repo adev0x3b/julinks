@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import type { ImageFocus, ImageLayout } from "@/lib/validation";
 
 export class NotFound extends Error {
   constructor() {
@@ -12,7 +13,18 @@ export async function listLinks(userId: string) {
   return prisma.link.findMany({
     where: { userId },
     orderBy: { position: "asc" },
-    select: { id: true, title: true, url: true, position: true, enabled: true, thumbnailKey: true, _count: { select: { clicks: true } } },
+    select: {
+      id: true,
+      title: true,
+      url: true,
+      position: true,
+      enabled: true,
+      thumbnailKey: true,
+      imageLayout: true,
+      imageFocusX: true,
+      imageFocusY: true,
+      _count: { select: { clicks: true } },
+    },
   });
 }
 
@@ -41,14 +53,27 @@ export async function updateLink(userId: string, linkId: string, input: { title?
   });
 }
 
-/** Sets or clears a link's thumbnail; returns the previous key so the caller can delete the old object. */
+/**
+ * Sets or clears a link's picture; returns the previous key so the caller can
+ * delete the old object. A new picture starts centred: the old focal point
+ * belonged to the old picture.
+ */
 export async function setLinkThumbnail(userId: string, linkId: string, thumbnailKey: string | null): Promise<string | null> {
   return prisma.$transaction(async (tx) => {
     const current = await tx.link.findFirst({ where: { id: linkId, userId }, select: { thumbnailKey: true } });
     if (!current) throw new NotFound();
-    await tx.link.update({ where: { id: linkId }, data: { thumbnailKey } });
+    await tx.link.update({ where: { id: linkId }, data: { thumbnailKey, imageFocusX: 50, imageFocusY: 50 } });
     return current.thumbnailKey;
   });
+}
+
+/** How the picture shows (small thumbnail or big card image) and where it is centred. */
+export async function setLinkImage(userId: string, linkId: string, input: { layout: ImageLayout; focus: ImageFocus }) {
+  const result = await prisma.link.updateMany({
+    where: { id: linkId, userId },
+    data: { imageLayout: input.layout, imageFocusX: input.focus.x, imageFocusY: input.focus.y },
+  });
+  if (result.count === 0) throw new NotFound();
 }
 
 export async function deleteLink(userId: string, linkId: string) {

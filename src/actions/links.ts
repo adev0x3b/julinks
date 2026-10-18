@@ -2,9 +2,9 @@
 
 import { updateTag } from "next/cache";
 import { profileTag } from "@/lib/cache-tags";
-import { createLink, deleteLink, NotFound, reorderLinks, updateLink } from "@/lib/data/links";
+import { createLink, deleteLink, NotFound, reorderLinks, setLinkImage as saveLinkImage, updateLink } from "@/lib/data/links";
 import { requireUser } from "@/lib/session";
-import { fieldErrors, linkSchema, reorderSchema } from "@/lib/validation";
+import { fieldErrors, linkImageSchema, linkSchema, reorderSchema } from "@/lib/validation";
 
 export type LinkFormState = {
   errors?: Record<string, string>;
@@ -52,6 +52,20 @@ export async function setLinkEnabled(linkId: string, enabled: boolean): Promise<
     await updateLink(user.id, linkId, { enabled: Boolean(enabled) });
   } catch (error) {
     return { ok: false, error: error instanceof NotFound ? "Link not found" : "Could not update link" };
+  }
+  updateTag(profileTag(user.username));
+  return { ok: true };
+}
+
+/** Small or big, and where the picture is centred. */
+export async function setLinkImage(linkId: string, input: unknown): Promise<ActionResult> {
+  const user = await requireUser();
+  const parsed = linkImageSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid picture settings" };
+  try {
+    await saveLinkImage(user.id, linkId, parsed.data);
+  } catch (error) {
+    return { ok: false, error: error instanceof NotFound ? "Link not found" : "Could not save the picture settings" };
   }
   updateTag(profileTag(user.username));
   return { ok: true };
