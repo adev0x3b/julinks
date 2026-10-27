@@ -9,6 +9,13 @@ export class NotFound extends Error {
 
 export const MAX_LINKS_PER_USER = 100;
 
+/** One of the user's own links, or NotFound: the ownership check every per-link action starts with. */
+export async function getOwnLink(userId: string, linkId: string) {
+  const link = await prisma.link.findFirst({ where: { id: linkId, userId } });
+  if (!link) throw new NotFound();
+  return link;
+}
+
 export async function listLinks(userId: string) {
   return prisma.link.findMany({
     where: { userId },

@@ -1,5 +1,5 @@
 # Demo: `cp .env.example .env && docker compose up --build`, then open http://localhost:${WEB_PORT:-3000}
-# Demo profiles: http://localhost:3000/ada and /grace  (login ada@example.com / analytical-engine)
+# Demo profiles: http://localhost:${WEB_PORT:-3000}/ada and /grace  (login ada@example.com / analytical-engine)
 # Variables come from .env (see .env.example). SESSION_SECRET has no default on purpose: a known
 # signing key would let anyone forge a login cookie the day the stack is reachable from outside.
 services:

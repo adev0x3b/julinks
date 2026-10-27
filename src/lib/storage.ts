@@ -24,7 +24,8 @@ export type StorageConfig = {
   forcePathStyle: boolean;
 };
 
-export function storageConfig(env: NodeJS.ProcessEnv = process.env): StorageConfig {
+function storageConfig(): StorageConfig {
+  const env = process.env;
   const endpoint = env.S3_ENDPOINT;
   if (!endpoint) throw new Error("S3_ENDPOINT is not set");
   return {

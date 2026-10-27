@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import { lookup as dnsLookup, type LookupAddress } from "node:dns";
-import { Agent, fetch as undiciFetch, type Dispatcher } from "undici";
+import { Agent, buildConnector, fetch as undiciFetch, type Dispatcher } from "undici";
 
 /**
  * Finds the preview image a link advertises (Open Graph / Twitter card / image_src)
@@ -24,37 +24,91 @@ const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const USER_AGENT = "Mozilla/5.0 (compatible; JuLinks link preview; +https://github.com/adev0x3b/julinks)";
 
-/** True for loopback, private, link-local, multicast and unspecified addresses, v4 and v6 (incl. v4-mapped). */
+/**
+ * True for loopback, private, link-local, multicast and unspecified addresses, v4 and v6.
+ * A v6 address that carries a v4 one (v4-mapped `::ffff:a.b.c.d`, which the URL parser and
+ * resolvers also write as `::ffff:0a00:0001`, and NAT64 `64:ff9b::a.b.c.d`) is judged as that
+ * v4 address, whichever spelling it arrives in.
+ */
 export function isPrivateAddress(address: string): boolean {
-  const v4 = address.startsWith("::ffff:") ? address.slice(7) : address;
-  if (isIP(v4) === 4) {
+  const v4 = isIP(address) === 4 ? address : embeddedV4(address);
+  if (v4) {
     const [a, b] = v4.split(".").map(Number);
     return (
       a === 0 || a === 10 || a === 127 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) ||
       (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || a >= 224
     );
   }
-  const v6 = address.toLowerCase();
-  return v6 === "::" || v6 === "::1" || /^f[cd]/.test(v6) || /^fe[89ab]/.test(v6) || v6.startsWith("ff");
+  const groups = expandV6(address);
+  if (!groups) return true;
+  const v6 = groups.join(":");
+  return (
+    v6 === "0:0:0:0:0:0:0:0" || v6 === "0:0:0:0:0:0:0:1" || /^f[cd]/.test(groups[0]) || /^fe[89ab]/.test(groups[0]) || groups[0].startsWith("ff")
+  );
+}
+
+/** The eight hex groups of a v6 address, zero-padding removed, or null when it is not one. */
+function expandV6(address: string): string[] | null {
+  let text = address.toLowerCase().replace(/%.*$/, "");
+  const dotted = text.match(/(\d+\.\d+\.\d+\.\d+)$/);
+  if (dotted) {
+    const [a, b, c, d] = dotted[1].split(".").map(Number);
+    text = text.slice(0, -dotted[1].length) + ((a << 8) | b).toString(16) + ":" + ((c << 8) | d).toString(16);
+  }
+  const halves = text.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const missing = 8 - head.length - tail.length;
+  if (missing < 0 || (halves.length === 1 && missing !== 0)) return null;
+  const groups = [...head, ...Array(halves.length === 2 ? missing : 0).fill("0"), ...tail];
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.map((g) => g.replace(/^0+(?=.)/, ""));
+}
+
+/** The v4 address a v4-mapped or NAT64 v6 address stands for, in dotted form; null for any other address. */
+function embeddedV4(address: string): string | null {
+  const groups = expandV6(address);
+  if (!groups) return null;
+  const prefix = groups.slice(0, 6).join(":");
+  if (prefix !== "0:0:0:0:0:ffff" && prefix !== "64:ff9b:0:0:0:0") return null;
+  const hi = parseInt(groups[6], 16);
+  const lo = parseInt(groups[7], 16);
+  return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
 }
 
 function guardedAgent(allowPrivate: boolean, timeoutMs: number): Dispatcher {
+  const connectOptions = {
+    timeout: timeoutMs,
+    lookup(hostname: string, options: object, callback: (error: NodeJS.ErrnoException | null, addresses: LookupAddress[]) => void) {
+      dnsLookup(hostname, { ...options, all: true }, (error, addresses) => {
+        if (error) return callback(error, addresses as LookupAddress[]);
+        const list = addresses as LookupAddress[];
+        const blocked = list.find((entry) => isPrivateAddress(entry.address));
+        if (!allowPrivate && (blocked || list.length === 0)) {
+          return callback(new PreviewError("That address is not reachable from here"), list);
+        }
+        callback(null, list);
+      });
+    },
+  };
+  const connect = buildConnector(connectOptions);
   return new Agent({
     connectTimeout: timeoutMs,
     headersTimeout: timeoutMs,
     bodyTimeout: timeoutMs,
-    connect: {
-      lookup(hostname, options, callback) {
-        dnsLookup(hostname, { ...options, all: true }, (error, addresses) => {
-          if (error) return callback(error, addresses);
-          const list = addresses as LookupAddress[];
-          const blocked = list.find((entry) => isPrivateAddress(entry.address));
-          if (!allowPrivate && (blocked || list.length === 0)) {
-            return callback(new PreviewError("That address is not reachable from here"), list);
-          }
-          callback(null, list);
-        });
-      },
+    // The lookup above guards names; this guards the socket that was actually opened, which also
+    // covers IP literals (they never go through DNS) whatever form they were written in.
+    connect(options, callback) {
+      connect(options, (error, socket) => {
+        if (error || !socket) return callback(error, socket);
+        const remote = socket.remoteAddress ?? "";
+        if (!allowPrivate && (remote === "" || isPrivateAddress(remote))) {
+          socket.destroy();
+          return callback(new PreviewError("That address is not reachable from here"), null);
+        }
+        callback(null, socket);
+      });
     },
   });
 }

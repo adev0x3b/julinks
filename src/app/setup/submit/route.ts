@@ -15,9 +15,11 @@ import { fieldErrors, setupSchema } from "@/lib/validation";
 export async function POST(request: Request) {
   // A browser sends Origin on a cross-site form POST; refuse one from another site. curl sends none.
   const origin = request.headers.get("origin");
-  if (origin && new URL(origin).host !== request.headers.get("host")) {
+  if (origin && originHost(origin) !== request.headers.get("host")) {
     return new NextResponse("Forbidden", { status: 403 });
   }
+  // Before the body is read, so a flood of large bodies costs the limiter's answer, not memory.
+  if (!authLimiter.check(`setup:${await clientIp()}`).ok) return seeOther("/setup?error=limit");
   const form = await request.formData();
   const typed = { username: String(form.get("username") ?? ""), email: String(form.get("email") ?? "") };
   const back = (error: string) => {
@@ -27,7 +29,6 @@ export async function POST(request: Request) {
     return seeOther(`/setup?${query}`);
   };
 
-  if (!authLimiter.check(`setup:${await clientIp()}`).ok) return back("limit");
   const parsed = setupSchema.safeParse({
     code: form.get("code"),
     username: form.get("username"),
@@ -52,6 +53,15 @@ export async function POST(request: Request) {
     throw error;
   }
   return seeOther("/dashboard");
+}
+
+/** The host an Origin header names, or null for "null" and anything else that is not a URL. */
+function originHost(origin: string): string | null {
+  try {
+    return new URL(origin).host;
+  } catch {
+    return null;
+  }
 }
 
 /** A relative Location: the browser keeps whatever host and scheme it used, which a tunnel or proxy may have rewritten. */

@@ -66,8 +66,9 @@ describe("themes", () => {
     const bobs = await createTheme(bob.id, { name: "Bob's", tokens: DEFAULT_PRESET.tokens });
 
     await setThemePublic(alice.id, shared.id, true);
-    await new Promise((r) => setTimeout(r, 5));
     await setThemePublic(bob.id, bobs.id, true);
+    // Shared went public a minute earlier, so the gallery's newest-first order is unambiguous.
+    await prisma.theme.update({ where: { id: shared.id }, data: { publishedAt: new Date(Date.now() - 60_000) } });
 
     const gallery = await listGallery();
     expect(gallery.map((t) => t.name)).toEqual(["Bob's", "Shared"]);

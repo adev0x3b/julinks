@@ -8,11 +8,13 @@ vi.mock("@/lib/db", () => ({ prisma: {} }));
 const { signSessionToken, verifySessionToken } = await import("@/lib/session");
 
 const COMPOSE_DEFAULT = "compose-demo-secret-change-me-for-anything-real";
-const originalEnv = { SESSION_SECRET: process.env.SESSION_SECRET, APP_URL: process.env.APP_URL };
+const originalEnv = { SESSION_SECRET: process.env.SESSION_SECRET, APP_URL: process.env.APP_URL, TRUST_PROXY: process.env.TRUST_PROXY };
 
 afterEach(() => {
   process.env.SESSION_SECRET = originalEnv.SESSION_SECRET;
   process.env.APP_URL = originalEnv.APP_URL;
+  if (originalEnv.TRUST_PROXY === undefined) delete process.env.TRUST_PROXY;
+  else process.env.TRUST_PROXY = originalEnv.TRUST_PROXY;
 });
 
 describe("session tokens", () => {
@@ -48,6 +50,15 @@ describe("session tokens", () => {
       await expect(signSessionToken("user_1")).rejects.toThrow(/placeholder everybody knows/);
       await expect(verifySessionToken("x.y.z")).rejects.toThrow(/placeholder everybody knows/);
     }
+  });
+
+  it("refuses a placeholder secret behind a proxy even when APP_URL still says localhost", async () => {
+    process.env.SESSION_SECRET = COMPOSE_DEFAULT;
+    process.env.APP_URL = "http://localhost:3000";
+    process.env.TRUST_PROXY = "cloudflare";
+    await expect(signSessionToken("user_1")).rejects.toThrow(/placeholder everybody knows/);
+    process.env.TRUST_PROXY = "0";
+    await expect(signSessionToken("user_1")).resolves.toBeTypeOf("string");
   });
 
   it("refuses a short secret", async () => {

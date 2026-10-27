@@ -6,9 +6,9 @@ import { createFolder, deleteFolder, reorderFolders, updateFolder, type Folder }
 import { NotFound } from "@/lib/data/links";
 import { requireUser } from "@/lib/session";
 import { folderSchema, reorderSchema } from "@/lib/validation";
+import type { ActionResult } from "@/lib/action-result";
 
 export type FolderResult = { ok: true; folder: Folder } | { ok: false; error: string };
-export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export async function addFolder(input: { title: string }): Promise<FolderResult> {
   const user = await requireUser();

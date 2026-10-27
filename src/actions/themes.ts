@@ -19,8 +19,8 @@ import { getCurrentUser, requireUser } from "@/lib/session";
 import { copyObject, deleteObject } from "@/lib/storage";
 import { getPreset } from "@/lib/themes";
 import { fieldErrors, themeSchema } from "@/lib/validation";
+import type { ActionResult } from "@/lib/action-result";
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
 export type CreateResult = { ok: true; themeId: string; reused?: boolean } | { ok: false; error: string };
 export type SaveThemeState = { errors?: Record<string, string>; savedAt?: number };
 
@@ -49,7 +49,7 @@ export async function createThemeFromPreset(presetId: string): Promise<CreateRes
  * unpublishing or deleting it without touching anyone else's page. Taking
  * the same gallery theme twice activates the copy you already have.
  */
-export async function copyTheme(themeId: string): Promise<CreateResult> {
+async function copyTheme(themeId: string): Promise<CreateResult> {
   const user = await requireUser();
   try {
     const source = await getCopyableTheme(user.id, themeId);
@@ -81,7 +81,7 @@ export async function copyTheme(themeId: string): Promise<CreateResult> {
 }
 
 /** The gallery's "Use this theme" button: copy (or re-activate the earlier copy), then go to the studio, which says so. */
-export async function useGalleryTheme(formData: FormData): Promise<void> {
+export async function applyGalleryTheme(formData: FormData): Promise<void> {
   // Visitors are sent to log in and come back here.
   if (!(await getCurrentUser())) redirect("/login?next=/themes");
   const result = await copyTheme(String(formData.get("themeId") ?? ""));

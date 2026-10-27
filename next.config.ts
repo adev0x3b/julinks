@@ -37,8 +37,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Self-contained server for the Docker image (see Dockerfile).
   output: "standalone",
-  // Pin the project root: the CI runner checks out into a subfolder of another checkout,
-  // and Next would otherwise look for a lockfile further up.
+  // Pin the project root so Next never picks a lockfile further up the tree (a checkout
+  // nested inside another project, or a self-hosted runner's work folder).
   outputFileTracingRoot: process.cwd(),
   cacheComponents: true,
   // The app serves its own re-encoded WebPs from /img and never uses next/image, so the

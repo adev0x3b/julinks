@@ -84,7 +84,6 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   }
 }
 
-
 function isUniqueError(error: unknown): error is { code: string; meta?: { target?: unknown } } {
   return prismaCode(error) === "P2002";
 }

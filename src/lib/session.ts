@@ -7,31 +7,42 @@ import { prisma } from "@/lib/db";
 import { canReview, type Role } from "@/lib/roles";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
-export { SESSION_COOKIE };
 /**
  * Where a request with a cookie that no longer maps to a user is sent. The route
  * clears the cookie before showing /login; sending such a request straight to
  * /login would loop, because the proxy bounces any cookie-carrying request for
  * /login back to /dashboard.
  */
-export const SESSION_EXPIRED_PATH = "/login/expired";
+const SESSION_EXPIRED_PATH = "/login/expired";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 /**
- * Secrets everybody knows: the placeholder in .env.example and the value docker-compose used
- * to fall back to. Fine on a laptop, a skeleton key on the internet.
+ * Secrets everybody knows: the placeholder in .env.example, the value old .env files copied from
+ * docker-compose's former default, and the ones the tests and CI use. Fine locally, a skeleton key
+ * on the internet.
  */
-const KNOWN_SECRETS = new Set(["compose-demo-secret-change-me-for-anything-real", "change-me-to-a-long-random-string-32chars"]);
+const KNOWN_SECRETS = new Set([
+  "compose-demo-secret-change-me-for-anything-real",
+  "change-me-to-a-long-random-string-32chars",
+  "ci-session-secret-that-is-long-enough-123456",
+  "e2e-session-secret-that-is-long-enough-123456",
+]);
 
 function secretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error("SESSION_SECRET must be set and at least 32 characters long");
   }
-  if (KNOWN_SECRETS.has(secret) && !isLocalAppUrl()) {
+  if (KNOWN_SECRETS.has(secret) && (!isLocalAppUrl() || behindProxy())) {
     throw new Error("SESSION_SECRET is a placeholder everybody knows: put the output of `openssl rand -base64 48` in .env before serving JuLinks beyond localhost");
   }
   return new TextEncoder().encode(secret);
+}
+
+/** TRUST_PROXY set means a proxy or tunnel is in front, so "localhost" in APP_URL is not the whole story. */
+function behindProxy(): boolean {
+  const value = process.env.TRUST_PROXY;
+  return value !== undefined && value !== "" && value !== "0" && value !== "false";
 }
 
 /** True when APP_URL points at this machine, where a known secret cannot be abused from outside. */

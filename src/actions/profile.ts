@@ -6,6 +6,7 @@ import { replaceSocials, type Social } from "@/lib/data/socials";
 import { setAvatarFocus as saveAvatarFocus, updateProfile } from "@/lib/data/users";
 import { requireUser } from "@/lib/session";
 import { fieldErrors, imageFocusSchema, profileSchema, socialsSchema } from "@/lib/validation";
+import type { ActionResult } from "@/lib/action-result";
 
 export type ProfileFormState = {
   errors?: Record<string, string>;
@@ -26,7 +27,6 @@ export async function saveProfile(_prev: ProfileFormState, formData: FormData): 
   return { savedAt: Date.now() };
 }
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
 
 /** Where the avatar is centred inside its circle. */
 export async function setAvatarFocus(input: unknown): Promise<ActionResult> {

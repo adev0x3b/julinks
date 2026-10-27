@@ -239,7 +239,7 @@ test("pictures: avatar and link pictures are stored, served, laid out and centre
 
   // A file that is not an image is refused with a message.
   await page.getByLabel("Upload avatar").setInputFiles({ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") });
-  await expect(page.getByText("Upload a PNG, JPEG or WebP image")).toBeVisible();
+  await expect(page.getByText("Upload a PNG, JPEG, WebP or GIF image")).toBeVisible();
 
   // Avatar focal point: "Adjust" opens the picker; clicking near the top-left corner moves the point there.
   await page.getByRole("button", { name: "Adjust" }).click();

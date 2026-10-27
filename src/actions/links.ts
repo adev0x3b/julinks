@@ -7,8 +7,10 @@ import { setLinkFolder as saveLinkFolder } from "@/lib/data/folders";
 import { createLink, deleteLink, NotFound, reorderLinks, setLinkImage as saveLinkImage, updateLink } from "@/lib/data/links";
 import { PreviewError } from "@/lib/link-preview";
 import { grabLinkPreviewFor } from "@/lib/link-preview-store";
+import { uploadLimiter } from "@/lib/rate-limit";
 import { requireUser } from "@/lib/session";
 import { fieldErrors, linkImageSchema, linkSchema, reorderSchema } from "@/lib/validation";
+import type { ActionResult } from "@/lib/action-result";
 
 export type LinkFormState = {
   errors?: Record<string, string>;
@@ -17,7 +19,6 @@ export type LinkFormState = {
   savedAt?: number;
 };
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
 
 export async function addLink(_prev: LinkFormState, formData: FormData): Promise<LinkFormState> {
   const user = await requireUser();
@@ -34,6 +35,8 @@ export async function addLink(_prev: LinkFormState, formData: FormData): Promise
   }
   updateTag(profileTag(user.username));
   // Best effort, after the response: the link's own preview image, if the page advertises one.
+  // It spends the same budget as an upload, so adding links in a loop cannot turn into unlimited fetches.
+  if (!uploadLimiter.check(user.id).ok) return { savedAt: Date.now() };
   after(async () => {
     try {
       await grabLinkPreviewFor(user.id, link.id, link.url);

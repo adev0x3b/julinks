@@ -2,20 +2,19 @@
 
 import { updateTag } from "next/cache";
 import { GALLERY_TAG, profileTag } from "@/lib/cache-tags";
-import { NotFound, setLinkThumbnail } from "@/lib/data/links";
-import { prisma } from "@/lib/db";
+import { getOwnLink, NotFound, setLinkThumbnail } from "@/lib/data/links";
 import { PreviewError } from "@/lib/link-preview";
 import { grabLinkPreviewFor } from "@/lib/link-preview-store";
 import { getOwnTheme, setThemeBackground, ThemeNotFound } from "@/lib/data/themes";
 import { setAvatar } from "@/lib/data/users";
 import { imageKey, processImage, UnsupportedImage } from "@/lib/images";
-import { uploadLimiter } from "@/lib/rate-limit";
+import { retryLater, uploadLimiter } from "@/lib/rate-limit";
 import { requireUser } from "@/lib/session";
 import { deleteObject, putObject } from "@/lib/storage";
 import { MAX_UPLOAD_BYTES, type ImageKind } from "@/lib/validation";
+import type { ActionResult } from "@/lib/action-result";
 
 export type UploadResult = { ok: true; url: string } | { ok: false; error: string };
-export type ActionResult = { ok: true } | { ok: false; error: string };
 
 /**
  * Shared upload path: size check before anything is read, rate limit per user,
@@ -24,7 +23,7 @@ export type ActionResult = { ok: true } | { ok: false; error: string };
  */
 async function storeUpload(userId: string, formData: FormData, kind: ImageKind): Promise<{ key: string } | { error: string }> {
   const limit = uploadLimiter.check(userId);
-  if (!limit.ok) return { error: `Too many uploads. Try again in ${limit.retryAfterSeconds} seconds.` };
+  if (!limit.ok) return { error: retryLater("uploads", limit) };
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Choose an image to upload" };
   if (file.size > MAX_UPLOAD_BYTES) return { error: `Images must be smaller than ${MAX_UPLOAD_BYTES / 1024 / 1024} MB` };
@@ -83,10 +82,9 @@ export async function uploadLinkThumbnail(linkId: string, formData: FormData): P
 export async function grabLinkPreview(linkId: string): Promise<UploadResult> {
   const user = await requireUser();
   const limit = uploadLimiter.check(user.id);
-  if (!limit.ok) return { ok: false, error: `Too many uploads. Try again in ${limit.retryAfterSeconds} seconds.` };
-  const link = await prisma.link.findFirst({ where: { id: linkId, userId: user.id }, select: { url: true } });
-  if (!link) return { ok: false, error: "Link not found" };
+  if (!limit.ok) return { ok: false, error: retryLater("uploads", limit) };
   try {
+    const link = await getOwnLink(user.id, linkId);
     const stored = await grabLinkPreviewFor(user.id, linkId, link.url);
     updateTag(profileTag(user.username));
     return { ok: true, url: stored.url };

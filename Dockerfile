@@ -26,7 +26,6 @@ RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx next build
 
 # The generated Prisma client is already in the deps stage: `npm ci` ran `prisma generate`.
 FROM deps AS migrate
-COPY prisma ./prisma
 COPY tsconfig.json ./
 # The seed uses the app's image pipeline and storage client (src/lib) to upload the demo pictures;
 # the setup-code script makes a new code for /setup (`docker compose run --rm --no-deps migrate npm run setup-code`).

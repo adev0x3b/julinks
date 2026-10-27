@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { logout } from "@/actions/auth";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { countPendingRequests } from "@/lib/data/requests";
+import { isSetupPending } from "@/lib/data/setup";
 import { canReview } from "@/lib/roles";
 import { getCurrentUser, requireUser } from "@/lib/session";
 
@@ -65,6 +67,8 @@ async function ReviewerNav() {
 
 async function UserMenu() {
   const user = await requireUser();
+  // A session from before the database was reset, or a demo login, must not open a site that has no admin yet.
+  if (await isSetupPending()) redirect("/setup");
   return (
     <div className="flex items-center gap-2 text-sm">
       <a href={`/${user.username}`} target="_blank" rel="noreferrer" className="btn-secondary" data-testid="view-page">

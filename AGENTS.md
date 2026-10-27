@@ -1,3 +1,12 @@
+# Working on JuLinks
+
+Read [README.md](README.md) first: it says what the app does, how the parts fit and how the tests run. Conventions that matter when changing code:
+
+- Commits go straight to `main` and every push must keep `npm run lint`, `npm run typecheck`, `npm test`, `npm run test:integration` and `npm run test:e2e` green (see the Tests section of the README for what each needs).
+- Database changes are additive migrations under `prisma/migrations`: the compose stack runs `prisma migrate deploy` against real data on every start.
+- Anything that fetches, decodes or stores user-supplied content goes through the existing guards (`src/lib/link-preview.ts`, `src/lib/images.ts`, `src/lib/storage.ts`); the README's Security notes explain why each exists.
+- Every user action gives visible feedback (a toast, an inline error or a disabled state), in light and dark mode and at phone width.
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 ## This is NOT the Next.js you know

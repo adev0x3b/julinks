@@ -13,7 +13,7 @@ export const RESERVED_USERNAMES = new Set([
   "stats", "static", "public", "assets", "uploads", "favicon.ico", "robots.txt", "sitemap.xml", "health", "setup",
 ]);
 
-export const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])?$/;
+const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])?$/;
 
 export const usernameSchema = z
   .string()
@@ -49,7 +49,7 @@ export const signupSchema = z.object({
 /** First-run setup: the code the migrate step printed, and the admin account to create. */
 export const setupSchema = z
   .object({
-    code: z.string().trim().min(1, "Enter the setup code"),
+    code: z.string().trim().min(1, "Enter the setup code").max(64, "That is not a setup code"),
     username: usernameSchema,
     email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
     password: passwordSchema,
@@ -125,8 +125,6 @@ export const folderSchema = z.object({
   title: z.string().trim().min(1, "Give the folder a name").max(40, "Folder names are at most 40 characters"),
 });
 
-export const MAX_LINK_PREVIEW_BYTES = 8 * 1024 * 1024;
-
 const colour = z.string().trim().toLowerCase().regex(HEX_COLOUR, "Use a #rrggbb colour");
 
 /** Theme tokens as stored in the database and posted by the theme studio. Strict: unknown keys are errors. */
@@ -150,11 +148,10 @@ export const themeSchema = z.object({
 
 /** Uploads: the three image kinds and the size limit enforced before any decoding happens. */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
-export const IMAGE_KINDS = ["avatar", "thumbnail", "background"] as const;
-export type ImageKind = (typeof IMAGE_KINDS)[number];
+export type ImageKind = "avatar" | "thumbnail" | "background";
 
 /** How a link's picture shows on the page, and where its focal point sits (percent of the picture). */
-export const IMAGE_LAYOUTS = ["thumbnail", "featured"] as const;
+const IMAGE_LAYOUTS = ["thumbnail", "featured"] as const;
 export type ImageLayout = (typeof IMAGE_LAYOUTS)[number];
 export type ImageFocus = { x: number; y: number };
 const focusCoordinate = z.coerce.number().int().min(0).max(100);

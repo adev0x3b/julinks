@@ -7,6 +7,11 @@
  */
 export type RateLimitResult = { ok: boolean; remaining: number; retryAfterSeconds: number };
 
+/** The message a form shows when its limit is spent: "Too many attempts. Try again in 42 seconds." */
+export function retryLater(what: string, limit: RateLimitResult): string {
+  return `Too many ${what}. Try again in ${limit.retryAfterSeconds} seconds.`;
+}
+
 type Bucket = { count: number; resetAt: number };
 
 export class RateLimiter {
@@ -78,7 +83,5 @@ export const authLimiter = limiter("auth", 10, 15 * 60 * 1000);
 export const accountLimiter = limiter("account", 20, 60 * 60 * 1000);
 /** 120 redirects per minute per IP on the click endpoint. */
 export const clickLimiter = limiter("click", 120, 60 * 1000);
-/** 300 public page views per minute per IP. */
-export const publicLimiter = limiter("public", 300, 60 * 1000);
 /** Image uploads per user: each one is decoded and re-encoded, so keep the CPU honest. */
 export const uploadLimiter = limiter("upload", 40, 15 * 60 * 1000);

@@ -1,15 +1,21 @@
 {
   "name": "julinks",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "A link-in-bio page builder: one public page per user, a theme studio, click stats, invite-only sign-up.",
   "private": true,
   "license": "MIT",
+  "repository": "github:adev0x3b/julinks",
+  "homepage": "https://github.com/adev0x3b/julinks#readme",
+  "engines": {
+    "node": ">=26"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run --project unit",
+    "test": "vitest run --project unit --project component",
     "test:integration": "vitest run --project integration",
     "setup-code": "tsx scripts/setup-code.ts",
     "test:e2e": "playwright test",

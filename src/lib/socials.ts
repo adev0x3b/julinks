@@ -130,6 +130,3 @@ function mastodon(value: string): string | null {
 
 export type SocialIcon = { platform: SocialPlatformId; url: string };
 
-export function socialLabel(platform: string): string {
-  return (SOCIAL_PLATFORMS as Record<string, SocialPlatform>)[platform]?.label ?? platform;
-}

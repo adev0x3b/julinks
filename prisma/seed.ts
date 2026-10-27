@@ -22,7 +22,7 @@ import type { ImageKind } from "../src/lib/validation";
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
 /** Demo profiles are plain clients; the admin is created at /setup with the code printed below. */
-export const DEMO_USER = {
+const DEMO_USER = {
   username: "ada",
   email: "ada@example.com",
   password: "analytical-engine",

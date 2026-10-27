@@ -28,7 +28,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
-      - run: npx vitest run --project unit --project component
+      - run: npm test
 
   integration:
     name: Integration tests (PostgreSQL)
@@ -54,27 +54,15 @@ jobs:
           node-version: "26"
           cache: npm
       - run: npm ci --no-audit --no-fund
-      # SeaweedFS as a plain container rather than a `services:` entry: service containers cannot
-      # set a command, and the image needs `server -s3`. Random host port, cleaned up below.
       - name: Start SeaweedFS
-        run: |
-          name="julinks-s3-${{ github.run_id }}-${{ github.job }}"
-          docker rm -f "$name" >/dev/null 2>&1 || true
-          docker run -d --name "$name" -p 127.0.0.1::8333 chrislusf/seaweedfs:4.48 server -s3 -dir=/data
-          port=$(docker port "$name" 8333/tcp | head -1 | sed 's/.*://')
-          for i in $(seq 1 30); do
-            curl -s -o /dev/null "http://127.0.0.1:$port/" && break
-            sleep 2
-          done
-          echo "S3_NAME=$name" >> "$GITHUB_ENV"
-          echo "S3_TEST_ENDPOINT=http://127.0.0.1:$port" >> "$GITHUB_ENV"
+        run: scripts/ci-seaweedfs.sh start "julinks-s3-${{ github.run_id }}-${{ github.job }}"
       - run: npm run test:integration
         env:
           TEST_DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_test
           TEST_S3_ENDPOINT: ${{ env.S3_TEST_ENDPOINT }}
       - name: Stop SeaweedFS
         if: always()
-        run: docker rm -f "$S3_NAME" >/dev/null 2>&1 || true
+        run: scripts/ci-seaweedfs.sh stop
 
   e2e:
     name: End-to-end (Playwright, production build)
@@ -108,27 +96,15 @@ jobs:
         env:
           # The `job` context (service ports) is only available at step level, not in job env.
           DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
-      # SeaweedFS as a plain container rather than a `services:` entry: service containers cannot
-      # set a command, and the image needs `server -s3`. Random host port, cleaned up below.
       - name: Start SeaweedFS
-        run: |
-          name="julinks-s3-${{ github.run_id }}-${{ github.job }}"
-          docker rm -f "$name" >/dev/null 2>&1 || true
-          docker run -d --name "$name" -p 127.0.0.1::8333 chrislusf/seaweedfs:4.48 server -s3 -dir=/data
-          port=$(docker port "$name" 8333/tcp | head -1 | sed 's/.*://')
-          for i in $(seq 1 30); do
-            curl -s -o /dev/null "http://127.0.0.1:$port/" && break
-            sleep 2
-          done
-          echo "S3_NAME=$name" >> "$GITHUB_ENV"
-          echo "S3_TEST_ENDPOINT=http://127.0.0.1:$port" >> "$GITHUB_ENV"
+        run: scripts/ci-seaweedfs.sh start "julinks-s3-${{ github.run_id }}-${{ github.job }}"
       - run: npm run test:e2e
         env:
           E2E_DATABASE_URL: postgresql://julinks:julinks@localhost:${{ job.services.postgres.ports['5432'] }}/julinks_e2e
           E2E_S3_ENDPOINT: ${{ env.S3_TEST_ENDPOINT }}
       - name: Stop SeaweedFS
         if: always()
-        run: docker rm -f "$S3_NAME" >/dev/null 2>&1 || true
+        run: scripts/ci-seaweedfs.sh stop
       - uses: actions/upload-artifact@v7
         if: failure()
         with:

@@ -39,7 +39,7 @@ export default defineConfig({
           environment: "node",
           include: ["tests/integration/**/*.test.ts"],
           globalSetup: ["tests/integration/global-setup.ts"],
-          setupFiles: ["tests/integration/setup.ts"],
+          setupFiles: ["tests/integration/db-setup.ts"],
           fileParallelism: false,
           env: { SESSION_SECRET: "integration-test-secret-that-is-long-enough", LINK_PREVIEW_ALLOW_PRIVATE: "1" },
         },

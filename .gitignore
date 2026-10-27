@@ -44,7 +44,6 @@ next-env.d.ts
 /src/generated/prisma
 
 # a self-hosted GitHub Actions runner unpacked inside the clone
-/actions-runner/
 
 # playwright
 /test-results/

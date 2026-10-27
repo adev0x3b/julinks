@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import Link from "next/link";
 import { Suspense } from "react";
 import { SetupGate } from "@/components/SetupGate";
-import { useGalleryTheme } from "@/actions/themes";
+import { applyGalleryTheme } from "@/actions/themes";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicProfile, sampleProfile } from "@/components/PublicProfile";
@@ -103,7 +103,7 @@ async function Gallery() {
               </p>
             </div>
             {user ? (
-              <form action={useGalleryTheme}>
+              <form action={applyGalleryTheme}>
                 <input type="hidden" name="themeId" value={theme.id} />
                 <button type="submit" className="btn-secondary w-full py-1.5 text-xs" aria-label={`Use ${theme.name}`}>
                   Use this theme

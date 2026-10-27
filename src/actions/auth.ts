@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { DENIED_MESSAGE, PENDING_MESSAGE } from "@/lib/auth-messages";
 import { authenticate, createUser, RequestsFull, UniqueViolation } from "@/lib/data/users";
 import { demoLoginAllowed } from "@/lib/config";
-import { accountLimiter, authLimiter } from "@/lib/rate-limit";
+import { isSetupPending } from "@/lib/data/setup";
+import { accountLimiter, authLimiter, retryLater } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { createSession, destroySession } from "@/lib/session";
 import { fieldErrors, loginSchema, signupSchema } from "@/lib/validation";
@@ -18,6 +19,7 @@ export type AuthFormState = {
   toast?: { tone: "info" | "danger"; message: string; at: number };
 };
 
+const SETUP_FIRST = "This site is not set up yet: complete /setup first";
 
 function formValues(formData: FormData, keys: string[]): Record<string, string> {
   return Object.fromEntries(keys.map((k) => [k, String(formData.get(k) ?? "")]));
@@ -29,9 +31,11 @@ function formValues(formData: FormData, keys: string[]): Record<string, string> 
  */
 export async function signup(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const values = formValues(formData, ["username", "email"]);
+  // The pages redirect to /setup while it is pending; the actions refuse too, for a request posted straight at them.
+  if (await isSetupPending()) return { values, errors: { form: SETUP_FIRST } };
   const limit = authLimiter.check(`signup:${await clientIp()}`);
   if (!limit.ok) {
-    return { values, errors: { form: `Too many attempts. Try again in ${limit.retryAfterSeconds} seconds.` } };
+    return { values, errors: { form: retryLater("attempts", limit) } };
   }
   const parsed = signupSchema.safeParse({ ...values, password: formData.get("password") });
   if (!parsed.success) {
@@ -51,11 +55,12 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
 
 export async function login(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const values = formValues(formData, ["email"]);
+  if (await isSetupPending()) return { values, errors: { form: SETUP_FIRST } };
   // Only wrong guesses count: the limit is against brute force, not against a household sharing one address.
   const ipKey = `login:${await clientIp()}`;
   const ipLimit = authLimiter.peek(ipKey);
   if (!ipLimit.ok) {
-    return { values, errors: { form: `Too many attempts. Try again in ${ipLimit.retryAfterSeconds} seconds.` } };
+    return { values, errors: { form: retryLater("attempts", ipLimit) } };
   }
   const parsed = loginSchema.safeParse({ ...values, password: formData.get("password") });
   if (!parsed.success) {
@@ -65,7 +70,7 @@ export async function login(_prev: AuthFormState, formData: FormData): Promise<A
   const accountKey = `login:${parsed.data.email}`;
   const accountLimit = accountLimiter.peek(accountKey);
   if (!accountLimit.ok) {
-    return { values, errors: { form: `Too many attempts. Try again in ${accountLimit.retryAfterSeconds} seconds.` } };
+    return { values, errors: { form: retryLater("attempts", accountLimit) } };
   }
   const user = await authenticate(parsed.data.email, parsed.data.password);
   if (!user) {

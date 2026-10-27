@@ -1,14 +1,19 @@
 /**
- * Takes the README screenshots against a running server on a freshly seeded database (demo profiles only).
+ * Takes the README screenshots against a running server on a freshly seeded database (demo
+ * profiles only, no admin yet: the script completes /setup itself with a code it issues).
  *
  *   npm run build && node .next/standalone/server.js   (PORT=3100, DATABASE_URL and S3_* pointing at seeded stores)
- *   npx tsx scripts/screenshots.ts
+ *   npx tsx scripts/screenshots.ts                      (DATABASE_URL from .env, pointing at the same database)
  */
+import "dotenv/config";
 import { chromium, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import { issueSetupCode } from "../src/lib/data/setup";
+import { prisma } from "../src/lib/db";
 
 const base = process.env.BASE_URL ?? "http://127.0.0.1:3100";
 const out = "docs/screenshots";
+const PASSWORD = "correct horse battery staple";
 
 /** Pictures come from object storage; a shot taken before they land shows empty frames. */
 async function shot(page: Page, path: string) {
@@ -24,7 +29,22 @@ async function main() {
   const desktop = await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 });
   const page = await desktop.newPage();
 
-  await page.goto(`${base}/`);
+  // Nothing public shows before the admin exists, so first run through /setup with a fresh code.
+  const stamp = Date.now().toString(36);
+  const admin = { username: `andrea${stamp}`, email: `andrea-${stamp}@example.com` };
+  const code = await issueSetupCode();
+  if (!code) throw new Error("The database already has an admin: screenshots need a freshly seeded one");
+  await page.goto(`${base}/setup`);
+  await page.getByLabel("Setup code").fill(code);
+  await page.getByLabel("Username").fill(admin.username);
+  await page.getByLabel("Email").fill(admin.email);
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByLabel("Confirm password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Create the admin account" }).click();
+  await page.waitForURL(/\/dashboard$/);
+  await page.getByRole("button", { name: "Log out" }).click();
+  await page.waitForURL(/\/$/);
+
   await shot(page, `${out}/landing.png`);
 
   await page.goto(`${base}/login`);
@@ -59,17 +79,14 @@ async function main() {
   await page.getByTestId("gallery-card").first().waitFor();
   await shot(page, `${out}/gallery.png`);
 
-  // Sign-up requests. The demo profiles do not count, so on a freshly seeded database the first
-  // sign-up here becomes the admin; the requests come from a second, logged-out context.
+  // Sign-up requests come from a second, logged-out context; the admin created above reviews them.
   await page.goto(`${base}/dashboard`);
   await page.getByRole("button", { name: "Log out" }).click();
   await page.waitForURL(/\/$/);
-  const stamp = Date.now().toString(36);
-  await page.goto(`${base}/signup`);
-  await page.getByLabel("Username").fill(`andrea${stamp}`);
-  await page.getByLabel("Email").fill(`andrea-${stamp}@example.com`);
-  await page.getByLabel("Password").fill("correct horse battery staple");
-  await page.getByRole("button", { name: "Request my page" }).click();
+  await page.goto(`${base}/login`);
+  await page.getByLabel("Email").fill(admin.email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Log in" }).click();
   await page.waitForURL(/\/dashboard$/);
 
   const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 })).newPage();
@@ -82,11 +99,10 @@ async function main() {
     await visitor.goto(`${base}/signup`);
     await visitor.getByLabel("Username").fill(who.username);
     await visitor.getByLabel("Email").fill(who.email);
-    await visitor.getByLabel("Password").fill("correct horse battery staple");
+    await visitor.getByLabel("Password").fill(PASSWORD);
     await visitor.getByRole("button", { name: "Request my page" }).click();
     await visitor.getByTestId("request-sent").waitFor();
   }
-  await shot(visitor, `${out}/signup-requested.png`);
 
   await page.goto(`${base}/dashboard/requests`);
   await page.getByTestId("pending-requests").waitFor();
@@ -96,7 +112,7 @@ async function main() {
 
   await visitor.goto(`${base}/login`);
   await visitor.getByLabel("Email").fill(requests[2].email);
-  await visitor.getByLabel("Password").fill("correct horse battery staple");
+  await visitor.getByLabel("Password").fill(PASSWORD);
   await visitor.getByRole("button", { name: "Log in" }).click();
   await visitor.getByTestId("toast").waitFor();
   await shot(visitor, `${out}/login-denied.png`);
@@ -121,7 +137,9 @@ async function main() {
   console.log(`Saved screenshots to ${out}/`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

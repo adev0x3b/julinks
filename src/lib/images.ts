@@ -9,7 +9,7 @@ import type { ImageKind } from "@/lib/validation";
  * stored or served as-is.
  */
 export class UnsupportedImage extends Error {
-  constructor(message = "Upload a PNG, JPEG or WebP image") {
+  constructor(message = "Upload a PNG, JPEG, WebP or GIF image") {
     super(message);
   }
 }

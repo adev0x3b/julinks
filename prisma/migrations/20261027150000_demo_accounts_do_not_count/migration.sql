@@ -1,4 +1,4 @@
--- Seeded demo profiles are flagged so they never count as the first (admin) account.
+-- Seeded demo profiles are flagged so they never count as an admin; before this the first sign-up became one.
 ALTER TABLE "users" ADD COLUMN "isDemo" BOOLEAN NOT NULL DEFAULT false;
 
 UPDATE "users" SET "isDemo" = true, "role" = 'client'
