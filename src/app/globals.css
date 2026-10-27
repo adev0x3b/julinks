@@ -122,3 +122,43 @@ body {
 .jl-button:hover {
   filter: brightness(1.08);
 }
+/* A collapsed folder, opened: the row's box stretches down and its links become plain rows inside it,
+   the title row a shade darker. Closed, it is an ordinary .jl-button row. */
+.jl-disclosure[open] {
+  background: var(--jl-btn-bg);
+  color: var(--jl-btn-text);
+  border: 1px solid var(--jl-btn-border);
+  border-radius: min(var(--jl-radius), 1.75rem);
+  box-shadow: var(--jl-btn-shadow);
+  overflow: hidden;
+}
+.jl-disclosure[open] > summary {
+  background: color-mix(in srgb, var(--jl-btn-text) 10%, transparent);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.jl-disclosure[open] > summary:hover {
+  translate: none;
+  filter: none;
+}
+.jl-disclosure[open] > .jl-disclosure-body {
+  margin-top: 0;
+}
+.jl-disclosure[open] > .jl-disclosure-body ul {
+  gap: 0;
+}
+.jl-disclosure[open] .jl-button {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.jl-disclosure[open] li + li .jl-button {
+  border-top: 1px solid color-mix(in srgb, var(--jl-btn-text) 12%, transparent);
+}
+.jl-disclosure[open] .jl-button:hover {
+  translate: none;
+  filter: none;
+  background: color-mix(in srgb, var(--jl-btn-text) 6%, transparent);
+}

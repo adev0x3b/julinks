@@ -143,6 +143,9 @@ describe("PublicProfile", () => {
     const talks = container.querySelector("details[data-folder='f2']")!;
     expect(talks).not.toBeNull();
     expect(talks.querySelector("summary")?.textContent).toContain("Talks");
+    // Opened, the row's own box holds the links (styled by .jl-disclosure in globals.css).
+    expect(talks.classList.contains("jl-disclosure")).toBe(true);
+    expect(talks.querySelector(".jl-disclosure-body")).not.toBeNull();
     expect(within(talks as HTMLElement).getByRole("link", { name: "Keynote" })).toBeInTheDocument();
     // An empty folder is not rendered at all.
     expect(screen.queryByText("Empty")).toBeNull();

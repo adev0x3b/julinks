@@ -108,6 +108,13 @@ async function main() {
   await mobile.goto(`${base}/ada`);
   await mobile.getByRole("heading", { name: "Ada Lovelace" }).waitFor();
   await shot(mobile, `${out}/public-page.png`);
+  // The collapsed folder, opened: its row grows into a box holding the links.
+  const folder = mobile.locator("details[data-folder]").first();
+  await folder.locator("summary").click();
+  await mobile.waitForTimeout(400); // the chevron finishes turning
+  await mobile.mouse.move(0, 0);
+  await folder.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await shot(mobile, `${out}/folder-open.png`);
   await phone.close();
 
   await browser.close();
