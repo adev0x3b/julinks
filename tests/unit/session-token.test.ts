@@ -39,13 +39,15 @@ describe("session tokens", () => {
     expect(await verifySessionToken(`${header}.${payload}.AAAA`)).toBeNull();
   });
 
-  it("refuses the compose demo secret unless the app is served on localhost", async () => {
-    process.env.SESSION_SECRET = COMPOSE_DEFAULT;
-    process.env.APP_URL = "http://localhost:3000";
-    await expect(signSessionToken("user_1")).resolves.toBeTypeOf("string");
-    process.env.APP_URL = "https://links.example.com";
-    await expect(signSessionToken("user_1")).rejects.toThrow(/compose demo default/);
-    await expect(verifySessionToken("x.y.z")).rejects.toThrow(/compose demo default/);
+  it("refuses the well-known placeholder secrets unless the app is served on localhost", async () => {
+    for (const known of [COMPOSE_DEFAULT, "change-me-to-a-long-random-string-32chars"]) {
+      process.env.SESSION_SECRET = known;
+      process.env.APP_URL = "http://localhost:3000";
+      await expect(signSessionToken("user_1")).resolves.toBeTypeOf("string");
+      process.env.APP_URL = "https://links.example.com";
+      await expect(signSessionToken("user_1")).rejects.toThrow(/placeholder everybody knows/);
+      await expect(verifySessionToken("x.y.z")).rejects.toThrow(/placeholder everybody knows/);
+    }
   });
 
   it("refuses a short secret", async () => {

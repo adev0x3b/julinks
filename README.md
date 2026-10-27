@@ -69,28 +69,32 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 ## Running it
 
 ```bash
+cp .env.example .env
 docker compose up --build
 ```
 
-Then open <http://localhost:3000>. Four services: PostgreSQL, SeaweedFS (S3), a one-shot `migrate` container (migrations, demo profiles, demo images uploaded to the bucket) and `web`, which starts once `migrate` has finished.
+Then open <http://localhost:3000>. (`.env` holds the session secret; the placeholder in `.env.example` works on localhost only.) Four services: PostgreSQL, SeaweedFS (S3), a one-shot `migrate` container (migrations, demo profiles, demo images uploaded to the bucket) and `web`, which starts once `migrate` has finished.
 
 - Demo pages: <http://localhost:3000/ada> and <http://localhost:3000/grace>; gallery at <http://localhost:3000/themes>
 - Demo login: `ada@example.com` / `analytical-engine` (a plain client, like every demo profile)
 - Your own account: the first one you create is approved and made admin automatically, and its **Requests** page is where later sign-ups get approved or denied.
-- Change the host port with `WEB_PORT=8080 docker compose up`; set `SESSION_SECRET` and `S3_SECRET_ACCESS_KEY` for anything that is not a demo, and `APP_URL` to the public address (it is used for absolute URLs in page metadata).
+- Change the host port with `WEB_PORT=8080` in `.env`. The port is published on `127.0.0.1` only (`WEB_BIND=0.0.0.0` for the LAN).
 - Pointing the app at AWS S3, Cloudflare R2 or another S3-compatible service is a matter of the `S3_*` variables (see `.env.example`).
 
 ### Putting it on the internet
 
-The compose defaults suit a laptop. Before the app answers to a real hostname:
+The compose defaults suit a laptop. Before the app answers to a real hostname, in `.env`:
 
-1. Put a `SESSION_SECRET` of at least 32 random characters in `.env` (`openssl rand -base64 48`). The app refuses to start sessions with the compose default once `APP_URL` is not localhost.
-2. Set `APP_URL` to the public address and serve it over HTTPS (a reverse proxy such as Caddy or nginx in front of port 3000). Session cookies are `Secure` in production, so plain `http://` on anything but localhost cannot log in. Set `TRUST_PROXY=1` when the proxy appends the client address to `X-Forwarded-For`, so the per-IP rate limits key on the visitor, not on the proxy.
-3. Set `ALLOW_DEMO_LOGIN=0`: the demo profiles stay visible, but nobody can log in as `ada` and rewrite the showcase. Or skip the seed and have no demo profiles at all.
-4. Set `FIRST_ADMIN_EMAIL` to your own address before the first sign-up, so the first admin seat cannot be grabbed by whoever finds the site first.
-5. Set `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` to real credentials (and configure them on the storage side) or point `S3_*` at a managed bucket.
+1. `SESSION_SECRET`: the output of `openssl rand -base64 48`. The app refuses the placeholders everybody knows once `APP_URL` is not localhost. Changing it logs every browser out once.
+2. `APP_URL`: the public `https://` address. Session cookies are `Secure` in production, so plain `http://` on anything but localhost cannot log in; terminate TLS in front (Cloudflare Tunnel, Caddy, nginx).
+3. `TRUST_PROXY`: `cloudflare` behind a Cloudflare Tunnel, `1` behind nginx/Caddy/Traefik, so the per-IP rate limits key on the visitor and not on the proxy. Only safe when nothing but that proxy can reach port 3000, which is why compose publishes it on `127.0.0.1`.
+4. `ALLOW_DEMO_LOGIN=0`: the demo profiles stay visible, but nobody can log in as `ada` and rewrite the showcase.
+5. `FIRST_ADMIN_EMAIL`: your own address, so the first admin seat cannot be grabbed by whoever finds the site first (moot once you have an admin).
+6. `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`: real credentials, configured on the storage side too, or point `S3_*` at a managed bucket. Inside the compose network the bucket is not published, so this matters when the storage is.
 
 Then `docker compose up --build` as usual; migrations apply on start, nothing is wiped.
+
+**Cloudflare Tunnel** (what the author runs): `cloudflared` on the same machine points at `http://localhost:3000`, so the stack is reachable only through Cloudflare. Settings worth turning on in the Cloudflare dashboard: *Always Use HTTPS* and a minimum TLS version of 1.2 (SSL/TLS → Edge Certificates), *Bot Fight Mode* (Security → Bots), and one rate-limiting rule on `/login` and `/signup` (Security → WAF → Rate limiting rules; the free plan includes one). Optionally put a Zero Trust Access policy in front of `/dashboard` so only your own email can reach the editor at all; the public pages stay public.
 
 ### Local development
 

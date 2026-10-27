@@ -17,21 +17,24 @@ export { SESSION_COOKIE };
 export const SESSION_EXPIRED_PATH = "/login/expired";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
-/** The value docker-compose falls back to: fine on a laptop, a skeleton key on the internet. */
-const COMPOSE_DEMO_SECRET = "compose-demo-secret-change-me-for-anything-real";
+/**
+ * Secrets everybody knows: the placeholder in .env.example and the value docker-compose used
+ * to fall back to. Fine on a laptop, a skeleton key on the internet.
+ */
+const KNOWN_SECRETS = new Set(["compose-demo-secret-change-me-for-anything-real", "change-me-to-a-long-random-string-32chars"]);
 
 function secretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error("SESSION_SECRET must be set and at least 32 characters long");
   }
-  if (secret === COMPOSE_DEMO_SECRET && !isLocalAppUrl()) {
-    throw new Error("SESSION_SECRET is the compose demo default: set a real one in .env before serving JuLinks beyond localhost");
+  if (KNOWN_SECRETS.has(secret) && !isLocalAppUrl()) {
+    throw new Error("SESSION_SECRET is a placeholder everybody knows: put the output of `openssl rand -base64 48` in .env before serving JuLinks beyond localhost");
   }
   return new TextEncoder().encode(secret);
 }
 
-/** True when APP_URL points at this machine, where the known compose secret cannot be abused from outside. */
+/** True when APP_URL points at this machine, where a known secret cannot be abused from outside. */
 function isLocalAppUrl(): boolean {
   try {
     const host = new URL(process.env.APP_URL ?? "http://localhost:3000").hostname;

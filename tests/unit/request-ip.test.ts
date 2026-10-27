@@ -24,6 +24,17 @@ describe("clientIp", () => {
     expect(await clientIp()).toBe("203.0.113.9");
   });
 
+  it("believes cf-connecting-ip only behind Cloudflare", async () => {
+    headerStore.set("cf-connecting-ip", "203.0.113.9");
+    headerStore.set("x-forwarded-for", "1.2.3.4");
+    expect(await clientIp()).toBe("1.2.3.4");
+    process.env.TRUST_PROXY = "cloudflare";
+    expect(await clientIp()).toBe("203.0.113.9");
+    headerStore.delete("cf-connecting-ip");
+    headerStore.set("x-forwarded-for", "1.2.3.4, 203.0.113.10");
+    expect(await clientIp()).toBe("203.0.113.10");
+  });
+
   it("falls back to x-real-ip, then to a fixed key", async () => {
     headerStore.set("x-real-ip", "198.51.100.7");
     expect(await clientIp()).toBe("198.51.100.7");
