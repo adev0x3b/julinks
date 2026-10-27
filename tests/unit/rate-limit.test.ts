@@ -15,6 +15,22 @@ describe("RateLimiter", () => {
     expect(limiter.check("ip").ok).toBe(true);
   });
 
+  it("peek reads the budget without spending it", () => {
+    let now = 0;
+    const limiter = new RateLimiter(2, 1000, () => now);
+    expect(limiter.peek("ip")).toEqual({ ok: true, remaining: 2, retryAfterSeconds: 0 });
+    limiter.check("ip");
+    expect(limiter.peek("ip").ok).toBe(true);
+    expect(limiter.peek("ip").remaining).toBe(1);
+    limiter.check("ip");
+    // Budget spent: blocked before another attempt is made, with the time to wait.
+    const blocked = limiter.peek("ip");
+    expect(blocked.ok).toBe(false);
+    expect(blocked.retryAfterSeconds).toBe(1);
+    now = 1000;
+    expect(limiter.peek("ip").ok).toBe(true);
+  });
+
   it("keeps keys independent", () => {
     const limiter = new RateLimiter(1, 1000, () => 0);
     expect(limiter.check("a").ok).toBe(true);

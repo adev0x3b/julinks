@@ -22,10 +22,12 @@ import {
   removeLink,
   reorder,
   setLinkEnabled,
+  setLinkFolder,
   setLinkImage,
 } from "@/actions/links";
-import { removeLinkThumbnail, uploadLinkThumbnail } from "@/actions/uploads";
+import { grabLinkPreview, removeLinkThumbnail, uploadLinkThumbnail } from "@/actions/uploads";
 import { focusPosition } from "@/components/PublicProfile";
+import type { Folder } from "@/lib/data/folders";
 import { moveItem } from "@/lib/reorder";
 import type { ImageFocus, ImageLayout } from "@/lib/validation";
 import { FocalPointPicker, useDebouncedSave } from "./FocalPointPicker";
@@ -39,14 +41,17 @@ export type EditorLink = {
   thumbnailUrl: string | null;
   imageLayout: ImageLayout;
   imageFocus: ImageFocus;
+  folderId: string | null;
 };
 
 export function LinkList({
   items,
+  folders,
   onChange,
   onRefresh,
 }: {
   items: EditorLink[];
+  folders: Folder[];
   onChange: (next: EditorLink[]) => void;
   onRefresh: () => void;
 }) {
@@ -117,6 +122,7 @@ export function LinkList({
               <LinkRow
                 key={link.id}
                 link={link}
+                folders={folders}
                 onPatch={(changes) => patch(link.id, changes)}
                 onRemoved={() =>
                   onChange(items.filter((l) => l.id !== link.id))
@@ -134,12 +140,14 @@ export function LinkList({
 
 function LinkRow({
   link,
+  folders,
   onPatch,
   onRemoved,
   onError,
   onRefresh,
 }: {
   link: EditorLink;
+  folders: Folder[];
   onPatch: (changes: Partial<EditorLink>) => void;
   onRemoved: () => void;
   onError: (message: string | null) => void;
@@ -178,6 +186,18 @@ function LinkRow({
         onRemoved();
         onRefresh();
       } else {
+        onError(result.error);
+      }
+    });
+  }
+
+  function moveToFolder(folderId: string | null) {
+    const previous = link.folderId;
+    onPatch({ folderId });
+    startTransition(async () => {
+      const result = await setLinkFolder(link.id, folderId);
+      if (!result.ok) {
+        onPatch({ folderId: previous });
         onError(result.error);
       }
     });
@@ -233,8 +253,6 @@ function LinkRow({
           link={link}
           open={pictureOpen}
           onToggle={() => setPictureOpen((v) => !v)}
-          onPatch={onPatch}
-          onError={onError}
         />
 
         {editing ? (
@@ -287,6 +305,22 @@ function LinkRow({
             >
               {link.clicks} {link.clicks === 1 ? "click" : "clicks"}
             </span>
+            {folders.length > 0 && (
+              <select
+                className="input w-auto max-w-36 py-1.5 text-xs"
+                value={link.folderId && folders.some((f) => f.id === link.folderId) ? link.folderId : ""}
+                onChange={(ev) => moveToFolder(ev.target.value || null)}
+                disabled={pending}
+                aria-label={`Folder for ${link.title}`}
+              >
+                <option value="">No folder</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.title}
+                  </option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               role="switch"
@@ -320,7 +354,7 @@ function LinkRow({
           </>
         )}
       </div>
-      {pictureOpen && link.thumbnailUrl && (
+      {pictureOpen && (
         <PicturePanel
           link={link}
           onPatch={onPatch}
@@ -371,23 +405,18 @@ function usePictureUpload(
 }
 
 /**
- * The square before the title: a dashed placeholder that opens the file
- * dialog, or the link's picture, which opens the picture panel below the row.
+ * The square before the title: a dashed placeholder or the link's picture.
+ * Either opens the picture panel below the row.
  */
 function PictureButton({
   link,
   open,
   onToggle,
-  onPatch,
-  onError,
 }: {
   link: EditorLink;
   open: boolean;
   onToggle: () => void;
-  onPatch: (changes: Partial<EditorLink>) => void;
-  onError: (message: string | null) => void;
 }) {
-  const { inputRef, pending, input } = usePictureUpload(link, onPatch, onError);
   return (
     <div className="shrink-0">
       <button
@@ -396,17 +425,14 @@ function PictureButton({
           link.thumbnailUrl
             ? "border-stone-200"
             : "border-dashed border-stone-300"
-        } ${open ? "ring-2 ring-brand-100" : ""} ${pending ? "opacity-60" : ""}`}
+        } ${open ? "ring-2 ring-brand-100" : ""}`}
         aria-label={
           link.thumbnailUrl
             ? `Picture settings for ${link.title}`
             : `Add picture for ${link.title}`
         }
-        aria-expanded={link.thumbnailUrl ? open : undefined}
-        onClick={() =>
-          link.thumbnailUrl ? onToggle() : inputRef.current?.click()
-        }
-        disabled={pending}
+        aria-expanded={open}
+        onClick={onToggle}
       >
         {link.thumbnailUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -433,12 +459,14 @@ function PictureButton({
           </svg>
         )}
       </button>
-      {!link.thumbnailUrl && input(`Picture file for ${link.title}`)}
     </div>
   );
 }
 
-/** Small or big, where the picture is centred, change it or remove it. Settings save on their own. */
+/**
+ * Without a picture: upload one or grab the link's own preview image. With one:
+ * small or big, where it is centred, change it or remove it. Settings save on their own.
+ */
 function PicturePanel({
   link,
   onPatch,
@@ -452,6 +480,8 @@ function PicturePanel({
 }) {
   const { pending: uploading, input } = usePictureUpload(link, onPatch, onError);
   const [pending, startTransition] = useTransition();
+  const [grabbing, startGrab] = useTransition();
+  const [grabError, setGrabError] = useState<string | null>(null);
   const [status, setStatus] = useState<"saving" | "saved" | null>(null);
   const latest = useRef({ layout: link.imageLayout, focus: link.imageFocus });
   useEffect(() => {
@@ -491,7 +521,47 @@ function PicturePanel({
     });
   }
 
+  function grab() {
+    setGrabError(null);
+    startGrab(async () => {
+      const result = await grabLinkPreview(link.id);
+      if (result.ok) {
+        onError(null);
+        onPatch({ thumbnailUrl: result.url, imageFocus: { x: 50, y: 50 } });
+      } else {
+        setGrabError(result.error);
+      }
+    });
+  }
+
   const name = `picture for ${link.title}`;
+  const grabButton = (
+    <button type="button" className="btn-secondary" onClick={grab} disabled={grabbing || uploading} aria-label={`Grab picture from the link ${link.title}`}>
+      {grabbing ? "Fetching…" : "Grab from the link"}
+    </button>
+  );
+  if (!link.thumbnailUrl) {
+    return (
+      <div className="mt-3 flex flex-col gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4" data-testid="picture-panel">
+        <p className="text-sm text-stone-600">Give this link a picture: upload one, or use the preview image the page itself advertises.</p>
+        {grabError && (
+          <p className="error" role="alert">
+            {grabError}
+          </p>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <label className={`btn-primary cursor-pointer ${uploading ? "pointer-events-none opacity-60" : ""}`}>
+            {uploading ? "Uploading…" : "Upload a picture"}
+            {input(`Picture file for ${link.title}`)}
+          </label>
+          {grabButton}
+          <button type="button" className="btn-ghost ml-auto" onClick={onClose} aria-label={`Close picture settings for ${link.title}`}>
+            Done
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div
       className="mt-3 flex flex-col gap-4 rounded-xl border border-stone-200 bg-stone-50 p-4"
@@ -547,6 +617,7 @@ function PicturePanel({
           {uploading ? "Uploading…" : "Change picture"}
           {input(`Picture file for ${link.title}`)}
         </label>
+        {grabButton}
         <button
           type="button"
           className="btn-ghost text-red-600 hover:text-red-700"
@@ -558,6 +629,11 @@ function PicturePanel({
         {status && (
           <span className="text-sm text-stone-500" role="status">
             {status === "saving" ? "Saving…" : "Saved"}
+          </span>
+        )}
+        {grabError && (
+          <span className="error" role="alert">
+            {grabError}
           </span>
         )}
         <button

@@ -32,10 +32,42 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   links        Link[]
+  folders      Folder[]
+  socials      SocialLink[]
   theme        Theme?   @relation("activeTheme", fields: [themeId], references: [id], onDelete: SetNull)
   themes       Theme[]  @relation("ownedThemes")
 
   @@map("users")
+}
+
+/// A group of links on the public page: shown as a titled section, or as a row that expands when collapsed.
+model Folder {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  position  Int
+  collapsed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  links     Link[]
+
+  @@index([userId, position])
+  @@map("folders")
+}
+
+/// The icon row under the bio: a platform, what the owner typed (handle, address or URL) and the URL it opens.
+model SocialLink {
+  id       String @id @default(cuid())
+  userId   String
+  platform String
+  value    String
+  url      String
+  position Int
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, position])
+  @@map("social_links")
 }
 
 model Link {
@@ -51,12 +83,16 @@ model Link {
   /// Focal point of the picture inside its frame, in percent (50/50 = centre).
   imageFocusX  Int      @default(50)
   imageFocusY  Int      @default(50)
+  /// The folder this link sits in on the public page; null means the top-level list.
+  folderId  String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folder    Folder?  @relation(fields: [folderId], references: [id], onDelete: SetNull)
   clicks    Click[]
 
   @@index([userId, position])
+  @@index([folderId])
   @@map("links")
 }
 

@@ -1,3 +1,4 @@
+import { SOCIAL_PLATFORMS, type SocialIcon } from "@/lib/socials";
 import { themeStyle, type ThemeTokens } from "@/lib/themes";
 import type { ImageFocus, ImageLayout } from "@/lib/validation";
 
@@ -9,7 +10,11 @@ export type PublicLink = {
   /** "thumbnail": small picture beside the title; "featured": big picture above it. */
   imageLayout: ImageLayout;
   imageFocus: ImageFocus;
+  /** The folder the link is listed under, or null for the top-level list. */
+  folderId: string | null;
 };
+
+export type PublicFolder = { id: string; title: string; collapsed: boolean };
 
 export type PublicTheme = {
   name: string;
@@ -24,6 +29,10 @@ export type PublicProfileData = {
   avatarUrl: string | null;
   avatarFocus: ImageFocus;
   theme: PublicTheme;
+  /** The icon row under the bio, in order. */
+  socials: SocialIcon[];
+  /** Folders in order; links whose folderId matches are listed under them. */
+  folders: PublicFolder[];
   links: PublicLink[];
 };
 
@@ -42,6 +51,15 @@ export function PublicProfile({
   preview?: boolean;
 }) {
   const { theme } = profile;
+  const folderIds = new Set(profile.folders.map((f) => f.id));
+  // A link pointing at a folder that no longer exists is listed at the top level rather than lost.
+  const topLevel = profile.links.filter((l) => !l.folderId || !folderIds.has(l.folderId));
+  const byFolder = new Map<string, PublicLink[]>();
+  for (const link of profile.links) {
+    if (link.folderId && folderIds.has(link.folderId)) {
+      byFolder.set(link.folderId, [...(byFolder.get(link.folderId) ?? []), link]);
+    }
+  }
   const initials = profile.displayName
     .split(/\s+/)
     .filter(Boolean)
@@ -77,18 +95,89 @@ export function PublicProfile({
       <h1 className="mt-4 text-xl font-semibold">{profile.displayName}</h1>
       <p className="jl-muted mt-1 text-sm">@{profile.username}</p>
       {profile.bio && (
-        <p className="mt-3 max-w-xs text-center text-sm leading-relaxed">
+        // Line breaks the owner typed are kept, so a row of emoji can sit under the text instead of wrapping into it.
+        <p className="mt-3 max-w-xs whitespace-pre-line text-center text-sm leading-relaxed">
           {profile.bio}
         </p>
+      )}
+      {profile.socials.length > 0 && (
+        <ul className="mt-4 flex flex-wrap justify-center gap-4" aria-label="Social links">
+          {profile.socials.map((social, index) => {
+            const platform = SOCIAL_PLATFORMS[social.platform];
+            return (
+              <li key={`${social.platform}-${index}`}>
+                <a
+                  href={preview ? undefined : social.url}
+                  role={preview ? "button" : undefined}
+                  target={preview || social.platform === "email" ? undefined : "_blank"}
+                  rel="noreferrer"
+                  className="jl-social block rounded-full p-1 transition hover:-translate-y-0.5"
+                  aria-label={platform.label}
+                  title={platform.label}
+                  data-platform={social.platform}
+                >
+                  <svg viewBox="0 0 24 24" width={24} height={24} fill="currentColor" aria-hidden>
+                    <path d={platform.path} />
+                  </svg>
+                </a>
+              </li>
+            );
+          })}
+        </ul>
       )}
 
       <ul
         className="mt-8 flex w-full max-w-sm flex-col gap-3"
         aria-label="Links"
       >
-        {profile.links.map((link) => (
+        {topLevel.map((link) => (
           <li key={link.id}>
-            {link.thumbnailUrl && link.imageLayout === "featured" ? (
+            <LinkButton link={link} preview={preview} />
+          </li>
+        ))}
+        {profile.links.length === 0 && (
+          <li className="jl-muted text-center text-sm">No links yet.</li>
+        )}
+      </ul>
+      {profile.folders.map((folder) => {
+        const links = byFolder.get(folder.id) ?? [];
+        if (links.length === 0) return null;
+        const list = (
+          <ul className="flex w-full flex-col gap-3" aria-label={folder.title}>
+            {links.map((link) => (
+              <li key={link.id}>
+                <LinkButton link={link} preview={preview} />
+              </li>
+            ))}
+          </ul>
+        );
+        return folder.collapsed ? (
+          // Native disclosure: works without JavaScript and inside the hook-free preview.
+          <details key={folder.id} className="jl-folder group mt-3 w-full max-w-sm" data-folder={folder.id} data-collapsed="true">
+            <summary className="jl-button flex w-full cursor-pointer list-none items-center justify-center gap-2 px-12 py-3 text-center text-sm font-medium transition hover:-translate-y-0.5 [&::-webkit-details-marker]:hidden">
+              {folder.title}
+              <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} className="transition group-open:rotate-180" aria-hidden>
+                <path d="M3 6l5 5 5-5" />
+              </svg>
+            </summary>
+            <div className="mt-3">{list}</div>
+          </details>
+        ) : (
+          <section key={folder.id} className="jl-folder mt-8 w-full max-w-sm" data-folder={folder.id} data-collapsed="false">
+            <h2 className="jl-muted mb-3 text-center text-xs font-semibold uppercase tracking-widest">{folder.title}</h2>
+            {list}
+          </section>
+        );
+      })}
+
+      <p className="jl-muted mt-auto pt-12 text-xs">Made with JuLinks</p>
+    </div>
+  );
+}
+
+/** One link: a card with a big picture, or a button with an optional small picture beside the title. */
+function LinkButton({ link, preview }: { link: PublicLink; preview: boolean }) {
+  return link.thumbnailUrl && link.imageLayout === "featured" ? (
               <a
                 href={preview ? undefined : `/l/${link.id}`}
                 role={preview ? "button" : undefined}
@@ -128,17 +217,7 @@ export function PublicProfile({
                 )}
                 {link.title}
               </a>
-            )}
-          </li>
-        ))}
-        {profile.links.length === 0 && (
-          <li className="jl-muted text-center text-sm">No links yet.</li>
-        )}
-      </ul>
-
-      <p className="jl-muted mt-auto pt-12 text-xs">Made with JuLinks</p>
-    </div>
-  );
+            );
 }
 
 export const CENTRE: ImageFocus = { x: 50, y: 50 };
@@ -157,6 +236,7 @@ export function sampleProfile(theme: PublicTheme): PublicProfileData {
     thumbnailUrl: null,
     imageLayout: "thumbnail",
     imageFocus: CENTRE,
+    folderId: null,
   });
   return {
     username: "yourname",
@@ -165,6 +245,11 @@ export function sampleProfile(theme: PublicTheme): PublicProfileData {
     avatarUrl: null,
     avatarFocus: CENTRE,
     theme,
+    socials: [
+      { platform: "instagram", url: "#" },
+      { platform: "email", url: "#" },
+    ],
+    folders: [],
     links: [
       link("s1", "Portfolio"),
       link("s2", "Blog"),

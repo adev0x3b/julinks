@@ -1,8 +1,12 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { after } from "next/server";
 import { profileTag } from "@/lib/cache-tags";
+import { setLinkFolder as saveLinkFolder } from "@/lib/data/folders";
 import { createLink, deleteLink, NotFound, reorderLinks, setLinkImage as saveLinkImage, updateLink } from "@/lib/data/links";
+import { PreviewError } from "@/lib/link-preview";
+import { grabLinkPreviewFor } from "@/lib/link-preview-store";
 import { requireUser } from "@/lib/session";
 import { fieldErrors, linkImageSchema, linkSchema, reorderSchema } from "@/lib/validation";
 
@@ -22,13 +26,35 @@ export async function addLink(_prev: LinkFormState, formData: FormData): Promise
   if (!parsed.success) {
     return { values, errors: fieldErrors(parsed.error) };
   }
+  let link;
   try {
-    await createLink(user.id, parsed.data);
+    link = await createLink(user.id, parsed.data);
   } catch (error) {
     return { values, errors: { form: error instanceof Error ? error.message : "Could not add link" } };
   }
   updateTag(profileTag(user.username));
+  // Best effort, after the response: the link's own preview image, if the page advertises one.
+  after(async () => {
+    try {
+      await grabLinkPreviewFor(user.id, link.id, link.url);
+      updateTag(profileTag(user.username));
+    } catch (error) {
+      // Most pages simply have no preview image; nothing to tell the owner.
+      if (!(error instanceof PreviewError)) console.warn("auto preview failed", error);
+    }
+  });
   return { savedAt: Date.now() };
+}
+
+export async function setLinkFolder(linkId: string, folderId: string | null): Promise<ActionResult> {
+  const user = await requireUser();
+  try {
+    await saveLinkFolder(user.id, linkId, typeof folderId === "string" && folderId.length > 0 ? folderId : null);
+  } catch (error) {
+    return { ok: false, error: error instanceof NotFound ? "Link or folder not found" : "Could not move the link" };
+  }
+  updateTag(profileTag(user.username));
+  return { ok: true };
 }
 
 export async function editLink(linkId: string, input: { title: string; url: string }): Promise<ActionResult> {

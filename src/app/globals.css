@@ -10,8 +10,60 @@
   --color-brand-700: #4338ca;
 }
 
+/*
+ * Dark mode for the app chrome (dashboard, auth pages, landing, gallery). Toggled
+ * by adding .dark to <html> (ThemeToggle; the inline script in the root layout
+ * applies the saved or system choice before first paint). Rather than a dark:
+ * variant on every element, the palette tokens the utilities read are remapped:
+ * the stone scale is mirrored, "white" becomes the card colour, and the status
+ * colours (amber, emerald, rose, sky, green, red) swap their light and dark ends.
+ * Public pages are untouched: they draw every colour from their own theme.
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 html {
   color-scheme: light;
+}
+html.dark {
+  color-scheme: dark;
+  --color-white: #1c1917;
+  --color-stone-50: #0c0a09;
+  --color-stone-100: #292524;
+  --color-stone-200: #44403c;
+  --color-stone-300: #57534e;
+  --color-stone-400: #a8a29e;
+  --color-stone-500: #a8a29e;
+  --color-stone-600: #d6d3d1;
+  --color-stone-700: #e7e5e4;
+  --color-stone-800: #f5f5f4;
+  --color-stone-900: #fafaf9;
+  --color-brand-50: #1e1b4b;
+  --color-brand-100: #312e81;
+  --color-brand-700: #6366f1;
+  --color-amber-50: #451a03;
+  --color-amber-100: #78350f;
+  --color-amber-800: #fde68a;
+  --color-amber-900: #fef3c7;
+  --color-emerald-50: #022c22;
+  --color-emerald-100: #064e3b;
+  --color-emerald-800: #a7f3d0;
+  --color-emerald-900: #d1fae5;
+  --color-rose-50: #4c0519;
+  --color-rose-100: #881337;
+  --color-rose-200: #9f1239;
+  --color-rose-800: #fecdd3;
+  --color-rose-900: #ffe4e6;
+  --color-sky-50: #082f49;
+  --color-sky-200: #075985;
+  --color-sky-900: #e0f2fe;
+  --color-green-700: #86efac;
+  --color-red-600: #fca5a5;
+  --color-red-700: #fecaca;
+}
+/* Things that must stay literally white or dark whichever mode is on. */
+html.dark .btn-primary,
+html.dark .text-on-brand {
+  color: #fff;
 }
 
 body {

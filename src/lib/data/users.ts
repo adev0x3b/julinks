@@ -4,6 +4,7 @@ import type { PublicProfileData } from "@/components/PublicProfile";
 import { imageUrl } from "@/lib/image-url";
 import { DEFAULT_PRESET, type ThemeTokens } from "@/lib/themes";
 import type { Role } from "@/lib/roles";
+import type { SocialPlatformId } from "@/lib/socials";
 import type { ImageFocus } from "@/lib/validation";
 
 export type NewUser = { username: string; email: string; password: string; displayName: string };
@@ -138,10 +139,12 @@ export async function getPublicProfile(username: string): Promise<PublicProfileD
       avatarFocusX: true,
       avatarFocusY: true,
       theme: { select: { name: true, tokens: true, backgroundKey: true } },
+      socials: { orderBy: { position: "asc" }, select: { platform: true, url: true } },
+      folders: { orderBy: { position: "asc" }, select: { id: true, title: true, collapsed: true } },
       links: {
         where: { enabled: true },
         orderBy: { position: "asc" },
-        select: { id: true, title: true, url: true, thumbnailKey: true, imageLayout: true, imageFocusX: true, imageFocusY: true },
+        select: { id: true, title: true, url: true, thumbnailKey: true, imageLayout: true, imageFocusX: true, imageFocusY: true, folderId: true },
       },
     },
   });
@@ -156,6 +159,8 @@ export async function getPublicProfile(username: string): Promise<PublicProfileD
     avatarUrl: imageUrl(user.avatarKey),
     avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
     theme,
+    socials: user.socials.map((s) => ({ platform: s.platform as SocialPlatformId, url: s.url })),
+    folders: user.folders,
     links: user.links.map((l) => ({
       id: l.id,
       title: l.title,
@@ -163,6 +168,7 @@ export async function getPublicProfile(username: string): Promise<PublicProfileD
       thumbnailUrl: imageUrl(l.thumbnailKey),
       imageLayout: l.imageLayout,
       imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
+      folderId: l.folderId,
     })),
   };
 }

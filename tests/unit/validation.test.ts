@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { imageFocusSchema, linkImageSchema } from "@/lib/validation";
-import { decisionSchema, fieldErrors, linkSchema, linkUrlSchema, signupSchema, themeSchema, themeTokensSchema, usernameSchema } from "@/lib/validation";
+import { bioSchema, decisionSchema, fieldErrors, folderSchema, linkSchema, socialsSchema, linkUrlSchema, signupSchema, themeSchema, themeTokensSchema, usernameSchema } from "@/lib/validation";
 
 describe("usernameSchema", () => {
   it.each(["ada", "ada_lovelace", "ada-99", "A1b"])("accepts %s", (value) => {
@@ -60,6 +60,43 @@ describe("signupSchema", () => {
 
   it("rejects short passwords", () => {
     expect(signupSchema.safeParse({ username: "ada", email: "a@b.co", password: "short" }).success).toBe(false);
+  });
+});
+
+describe("bioSchema", () => {
+  it("keeps single line breaks, trims each line and collapses blank runs", () => {
+    expect(bioSchema.parse("Libri e articoli  \r\n\r\n\n✨ 🏳️‍⚧️ 🎨\n")).toBe("Libri e articoli\n✨ 🏳️‍⚧️ 🎨");
+  });
+
+  it("caps the number of lines and the length", () => {
+    expect(bioSchema.safeParse("1\n2\n3\n4\n5\n6").success).toBe(true);
+    expect(bioSchema.safeParse("1\n2\n3\n4\n5\n6\n7").success).toBe(false);
+    expect(bioSchema.safeParse("x".repeat(201)).success).toBe(false);
+  });
+});
+
+describe("socialsSchema", () => {
+  it("builds the URL for each row and reports bad rows by index", () => {
+    const parsed = socialsSchema.parse([
+      { platform: "instagram", value: " @june " },
+      { platform: "email", value: "june@example.com" },
+    ]);
+    expect(parsed).toEqual([
+      { platform: "instagram", value: "@june", url: "https://instagram.com/june" },
+      { platform: "email", value: "june@example.com", url: "mailto:june@example.com" },
+    ]);
+    const bad = socialsSchema.safeParse([{ platform: "instagram", value: "ok" }, { platform: "email", value: "nope" }]);
+    expect(bad.success).toBe(false);
+    if (!bad.success) expect(bad.error.issues[0].path).toEqual([1, "value"]);
+    expect(socialsSchema.safeParse([{ platform: "myspace", value: "x" }]).success).toBe(false);
+  });
+});
+
+describe("folderSchema", () => {
+  it("needs a short name", () => {
+    expect(folderSchema.parse({ title: "  Articoli " })).toEqual({ title: "Articoli" });
+    expect(folderSchema.safeParse({ title: "   " }).success).toBe(false);
+    expect(folderSchema.safeParse({ title: "x".repeat(41) }).success).toBe(false);
   });
 });
 

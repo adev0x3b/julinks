@@ -5,9 +5,10 @@ import { useActionState } from "react";
 import { saveProfile, type ProfileFormState } from "@/actions/profile";
 import { Field } from "@/components/Field";
 import { AvatarUploader } from "./AvatarUploader";
-import type { ImageFocus } from "@/lib/validation";
+import { SocialsEditor, type SocialDraft } from "./SocialsEditor";
+import { MAX_BIO_LINES, type ImageFocus } from "@/lib/validation";
 
-export type ProfileDraft = { displayName: string; bio: string; avatarUrl: string | null; avatarFocus: ImageFocus };
+export type ProfileDraft = { displayName: string; bio: string; avatarUrl: string | null; avatarFocus: ImageFocus; socials: SocialDraft[] };
 
 const initial: ProfileFormState = {};
 
@@ -58,11 +59,12 @@ export function ProfilePanel({
               onChange={(ev) => onChange({ ...draft, displayName: ev.target.value })}
             />
           </Field>
-          <Field label="Bio" name="bio" error={e.bio} hint={`${draft.bio.length}/200`}>
-            <input
+          <Field label="Bio" name="bio" error={e.bio} hint={`${draft.bio.length}/200 · Enter starts a new line (up to ${MAX_BIO_LINES})`}>
+            <textarea
               id="bio"
               name="bio"
-              className="input"
+              className="input resize-y"
+              rows={3}
               value={draft.bio}
               maxLength={200}
               onChange={(ev) => onChange({ ...draft, bio: ev.target.value })}
@@ -86,6 +88,7 @@ export function ProfilePanel({
           </span>
         </div>
       </form>
+      <SocialsEditor rows={draft.socials} onChange={(socials) => onChange({ ...draft, socials })} />
     </section>
   );
 }

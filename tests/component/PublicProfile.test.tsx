@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CENTRE, PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
 import { getPreset } from "@/lib/themes";
@@ -12,8 +12,10 @@ const profile: PublicProfileData = {
   avatarUrl: null,
   avatarFocus: CENTRE,
   theme: { name: sunrise.name, tokens: sunrise.tokens, backgroundUrl: null },
+  socials: [],
+  folders: [],
   links: [
-    { id: "l1", title: "Notes", url: "https://example.com/notes", thumbnailUrl: null, imageLayout: "thumbnail", imageFocus: CENTRE },
+    { id: "l1", title: "Notes", url: "https://example.com/notes", thumbnailUrl: null, imageLayout: "thumbnail", imageFocus: CENTRE, folderId: null },
     {
       id: "l2",
       title: "Letters",
@@ -21,6 +23,7 @@ const profile: PublicProfileData = {
       thumbnailUrl: "/img/thumbnails/u/000000000000000000000000.webp",
       imageLayout: "thumbnail",
       imageFocus: { x: 20, y: 80 },
+      folderId: null,
     },
   ],
 };
@@ -83,5 +86,65 @@ describe("PublicProfile", () => {
       <PublicProfile profile={{ ...profile, avatarUrl: "/img/avatars/u/000000000000000000000000.webp", avatarFocus: { x: 10, y: 0 } }} />,
     );
     expect((container.querySelector("img.jl-avatar") as HTMLElement).style.objectPosition).toBe("10% 0%");
+  });
+
+  it("keeps the bio's line breaks, so emoji can sit on their own row", () => {
+    render(<PublicProfile profile={{ ...profile, bio: "Libri e articoli\n✨ 🎨" }} />);
+    const bio = screen.getByText(/Libri e articoli/);
+    expect(bio.textContent).toBe("Libri e articoli\n✨ 🎨");
+    expect(bio.className).toContain("whitespace-pre-line");
+  });
+
+  it("shows the social icons under the bio, each opening its URL", () => {
+    render(
+      <PublicProfile
+        profile={{
+          ...profile,
+          socials: [
+            { platform: "instagram", url: "https://instagram.com/ada" },
+            { platform: "email", url: "mailto:ada@example.com" },
+          ],
+        }}
+      />,
+    );
+    const row = screen.getByRole("list", { name: "Social links" });
+    const icons = within(row).getAllByRole("link");
+    expect(icons.map((a) => [a.getAttribute("aria-label"), a.getAttribute("href")])).toEqual([
+      ["Instagram", "https://instagram.com/ada"],
+      ["Email", "mailto:ada@example.com"],
+    ]);
+    expect(icons[0]).toHaveAttribute("target", "_blank");
+    expect(icons[1]).not.toHaveAttribute("target");
+  });
+
+  it("lists folders after the top-level links: open ones as headed sections, collapsed ones as disclosures", () => {
+    const { container } = render(
+      <PublicProfile
+        profile={{
+          ...profile,
+          folders: [
+            { id: "f1", title: "Articles", collapsed: false },
+            { id: "f2", title: "Talks", collapsed: true },
+            { id: "f3", title: "Empty", collapsed: false },
+          ],
+          links: [
+            { ...profile.links[0], folderId: null },
+            { ...profile.links[1], id: "l2", title: "Letters", folderId: "f1" },
+            { ...profile.links[1], id: "l3", title: "Keynote", folderId: "f2" },
+            { ...profile.links[1], id: "l4", title: "Orphan", folderId: "gone" },
+          ],
+        }}
+      />,
+    );
+    // Top level: the unfiled link and the one whose folder no longer exists.
+    expect(within(screen.getByRole("list", { name: "Links" })).getAllByRole("link").map((a) => a.textContent)).toEqual(["Notes", "Orphan"]);
+    expect(screen.getByRole("heading", { level: 2, name: "Articles" })).toBeVisible();
+    expect(within(screen.getByRole("list", { name: "Articles" })).getByRole("link", { name: "Letters" })).toBeVisible();
+    const talks = container.querySelector("details[data-folder='f2']")!;
+    expect(talks).not.toBeNull();
+    expect(talks.querySelector("summary")?.textContent).toContain("Talks");
+    expect(within(talks as HTMLElement).getByRole("link", { name: "Keynote" })).toBeInTheDocument();
+    // An empty folder is not rendered at all.
+    expect(screen.queryByText("Empty")).toBeNull();
   });
 });

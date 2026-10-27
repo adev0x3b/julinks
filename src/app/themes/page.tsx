@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { useGalleryTheme } from "@/actions/themes";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { PublicProfile, sampleProfile } from "@/components/PublicProfile";
 import { GALLERY_TAG } from "@/lib/cache-tags";
 import { listGallery } from "@/lib/data/themes";
@@ -25,6 +26,7 @@ export default function GalleryPage() {
       <header className="flex items-center justify-between">
         <Logo />
         <nav className="flex items-center gap-2">
+          <ThemeToggle />
           <Link href="/login" className="btn-ghost">
             Log in
           </Link>

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ROLES } from "@/lib/roles";
+import { MAX_SOCIALS, SOCIAL_PLATFORM_IDS, SOCIAL_PLATFORMS } from "@/lib/socials";
 import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII } from "@/lib/themes";
 
 /** Path segments that would collide with app routes if used as usernames. */
@@ -62,10 +63,44 @@ export const linkSchema = z.object({
   url: linkUrlSchema,
 });
 
+export const MAX_BIO_LINES = 6;
+
+/** The bio keeps its line breaks (so emoji can sit on their own row) but not runs of blank lines. */
+export const bioSchema = z
+  .string()
+  .transform((value) => value.replace(/\r\n?/g, "\n").split("\n").map((line) => line.trim()).join("\n").replace(/\n{2,}/g, "\n").trim())
+  .pipe(z.string().max(200, "Bio must be at most 200 characters"))
+  .refine((value) => value.split("\n").length <= MAX_BIO_LINES, `Bio must be at most ${MAX_BIO_LINES} lines`);
+
 export const profileSchema = z.object({
   displayName: z.string().trim().min(1, "Display name is required").max(60),
-  bio: z.string().trim().max(200, "Bio must be at most 200 characters"),
+  bio: bioSchema,
 });
+
+/** One entry of the icon row: the platform and what the owner typed, turned into the URL the icon opens. */
+export const socialEntrySchema = z
+  .object({
+    platform: z.enum(SOCIAL_PLATFORM_IDS),
+    value: z.string().trim().min(1, "Enter a handle, address or URL").max(200),
+  })
+  .transform((entry, ctx) => {
+    const url = SOCIAL_PLATFORMS[entry.platform].toUrl(entry.value);
+    if (!url) {
+      ctx.addIssue({ code: "custom", path: ["value"], message: `That does not look like a ${SOCIAL_PLATFORMS[entry.platform].label} ${entry.platform === "email" ? "address" : "handle or URL"}` });
+      return z.NEVER;
+    }
+    return { ...entry, url };
+  });
+
+export const socialsSchema = z.array(socialEntrySchema).max(MAX_SOCIALS, `At most ${MAX_SOCIALS} icons`);
+export type SocialEntryInput = z.input<typeof socialEntrySchema>;
+export type SocialEntry = z.output<typeof socialEntrySchema>;
+
+export const folderSchema = z.object({
+  title: z.string().trim().min(1, "Give the folder a name").max(40, "Folder names are at most 40 characters"),
+});
+
+export const MAX_LINK_PREVIEW_BYTES = 8 * 1024 * 1024;
 
 const colour = z.string().trim().toLowerCase().regex(HEX_COLOUR, "Use a #rrggbb colour");
 

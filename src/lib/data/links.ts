@@ -23,6 +23,7 @@ export async function listLinks(userId: string) {
       imageLayout: true,
       imageFocusX: true,
       imageFocusY: true,
+      folderId: true,
       _count: { select: { clicks: true } },
     },
   });
