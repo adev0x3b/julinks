@@ -184,6 +184,10 @@ async function main() {
   }
 }
 
+// The app keeps libvips' SVG decoder switched off (see src/lib/images.ts) because uploads are
+// untrusted. The seed's pictures are drawn by this file, so this one-shot process turns it back on.
+sharp.unblock({ operation: ["VipsForeignLoadSvg"] });
+
 /** Renders an SVG to PNG, runs it through the same pipeline as an upload, and stores it. */
 async function store(kind: ImageKind, ownerId: string, svg: string): Promise<string> {
   const png = await sharp(Buffer.from(svg)).png().toBuffer();

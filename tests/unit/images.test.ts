@@ -1,6 +1,6 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { IMAGE_KEY_PATTERN, imageKey, processImage, rekeyImage, UnsupportedImage } from "@/lib/images";
+import { IMAGE_KEY_PATTERN, imageKey, processImage, rekeyImage, sniffImageFormat, UnsupportedImage } from "@/lib/images";
 
 async function png(width: number, height: number) {
   return sharp({ create: { width, height, channels: 3, background: "#336699" } })
@@ -40,6 +40,25 @@ describe("processImage", () => {
   it("rejects anything that is not an image", async () => {
     await expect(processImage(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"), "avatar")).rejects.toBeInstanceOf(UnsupportedImage);
     await expect(processImage(Buffer.from("hello"), "avatar")).rejects.toBeInstanceOf(UnsupportedImage);
+  });
+
+  it("refuses formats other than PNG, JPEG, WebP and GIF before any decoder runs", async () => {
+    const svg = Buffer.from(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><rect width="8" height="8"/></svg>`);
+    const avif = Buffer.concat([Buffer.from([0, 0, 0, 0x1c]), Buffer.from("ftypavif"), Buffer.alloc(64)]);
+    const pdf = Buffer.from("%PDF-1.4\n%âãÏÓ\n");
+    const tiff = Buffer.concat([Buffer.from("II*\0"), Buffer.alloc(64)]);
+    for (const bytes of [svg, avif, pdf, tiff]) {
+      expect(sniffImageFormat(bytes)).toBeNull();
+      await expect(processImage(bytes, "avatar")).rejects.toBeInstanceOf(UnsupportedImage);
+    }
+    // The decoders themselves are switched off in libvips, not only skipped by the sniff:
+    // sharp cannot read that SVG even when asked directly.
+    await expect(sharp(svg).metadata()).rejects.toThrow();
+    expect(sniffImageFormat(await png(4, 4))).toBe("png");
+    expect(sniffImageFormat(await sharp(await png(4, 4)).jpeg().toBuffer())).toBe("jpeg");
+    expect(sniffImageFormat(await sharp(await png(4, 4)).webp().toBuffer())).toBe("webp");
+    expect(sniffImageFormat(await sharp(await png(4, 4)).gif().toBuffer())).toBe("gif");
+    await expect(processImage(await sharp(await png(4, 4)).gif().toBuffer(), "avatar")).resolves.toMatchObject({ width: 4 });
   });
 });
 

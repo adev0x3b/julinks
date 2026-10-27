@@ -17,6 +17,31 @@ export class UnsupportedImage extends Error {
 const ACCEPTED_FORMATS = new Set(["png", "jpeg", "webp", "gif"]);
 
 /**
+ * libvips ships decoders for dozens of formats (SVG through librsvg, AVIF/HEIF through
+ * libheif, PDF, TIFF, JPEG 2000, ...) and sharp's metadata() would try each of them on an
+ * upload. Only the four the app accepts stay switched on, so a crafted file in any other
+ * format never reaches a parser at all: the fewer parsers that see attacker bytes, the
+ * fewer need to be bug-free (the October 2026 librsvg and August 2026 libheif RCEs were
+ * exactly this class). Process-wide, once, on first import.
+ */
+sharp.block({ operation: ["VipsForeignLoad"] });
+sharp.unblock({ operation: ["VipsForeignLoadPng", "VipsForeignLoadJpeg", "VipsForeignLoadWebp", "VipsForeignLoadNsgif"] });
+
+/** What the first bytes say the file is; anything else is refused before sharp sees it. */
+export function sniffImageFormat(input: Uint8Array): "png" | "jpeg" | "webp" | "gif" | null {
+  const b = input;
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "png";
+  if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "jpeg";
+  if (b.length >= 12 && ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP") return "webp";
+  if (b.length >= 6 && (ascii(b, 0, 6) === "GIF87a" || ascii(b, 0, 6) === "GIF89a")) return "gif";
+  return null;
+}
+
+function ascii(b: Uint8Array, from: number, to: number): string {
+  return String.fromCharCode(...b.subarray(from, to));
+}
+
+/**
  * Longest side per use. Pictures keep their shape: the page crops them with
  * object-fit around the owner's chosen focal point, so a crop at upload time
  * would throw away exactly the pixels the owner may want to centre on.
@@ -31,6 +56,7 @@ const SIZES: Record<ImageKind, { max: number; quality: number }> = {
 export type ProcessedImage = { data: Buffer; contentType: "image/webp"; width: number; height: number };
 
 export async function processImage(input: Uint8Array, kind: ImageKind): Promise<ProcessedImage> {
+  if (!sniffImageFormat(input)) throw new UnsupportedImage();
   const image = sharp(input, { limitInputPixels: 40_000_000, animated: false });
   let meta;
   try {
