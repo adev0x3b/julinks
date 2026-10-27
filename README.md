@@ -4,7 +4,9 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Next.js 16](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
 
-A self-hosted link-in-bio page, in the spirit of Linktree. One page per user with links, pictures, folders and social icons, a theme studio, click stats, and invite-only sign-up. Runs as a single `docker compose` stack.
+## About
+
+Hello! My name is Andrea Cracchiolo. JuLinks is born because my wife wanted a linktree she could customize as she whished; I built it with [Claude Code](https://claude.com/claude-code) as a pair programmer and reviewed every change. MIT licensed, see [LICENSE](LICENSE).
 
 Live at [links.juume.site](https://links.juume.site).
 
@@ -129,10 +131,6 @@ More in [docs/security.md](docs/security.md).
 
 1. Fork the repository and create a branch named after the change (`feature/scheduled-links`, `fix/folder-drag`).
 2. Keep `npm run lint`, `npm run typecheck` and `npm test` green, and add a test where the change needs one. The integration and e2e suites run in CI on every pull request.
-3. Open a pull request against `main` and say what it does and why. I review every PR myself, and nothing merges without my approval.
+3. Open a pull request against `main` and say what it does and why. I will try to review the PR as soon as possible. My wife has the last say-so on new features.
 
 Bug reports and ideas are welcome as issues.
-
-## About
-
-I'm Andrea Cracchiolo. JuLinks is my project; I built it with [Claude Code](https://claude.com/claude-code) as a pair programmer and reviewed every change. MIT licensed, see [LICENSE](LICENSE).
