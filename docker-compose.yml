@@ -61,6 +61,10 @@ services:
       DATABASE_URL: postgresql://julinks:julinks@db:5432/julinks
       SESSION_SECRET: ${SESSION_SECRET:-compose-demo-secret-change-me-for-anything-real}
       APP_URL: ${APP_URL:-http://localhost:${WEB_PORT:-3000}}
+      # Deployment switches, see .env.example: demo logins on by default (a laptop), off for a public site.
+      ALLOW_DEMO_LOGIN: ${ALLOW_DEMO_LOGIN:-1}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL:-}
       S3_ENDPOINT: http://s3:8333
       S3_BUCKET: julinks
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-julinks}

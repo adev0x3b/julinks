@@ -25,6 +25,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
               <Link href="/dashboard/stats" className="btn-ghost">
                 Stats
               </Link>
+              <Link href="/dashboard/account" className="btn-ghost">
+                Account
+              </Link>
               <Suspense>
                 <ReviewerNav />
               </Suspense>

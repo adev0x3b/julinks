@@ -3,6 +3,10 @@ import { ROLES } from "@/lib/roles";
 import { MAX_SOCIALS, SOCIAL_PLATFORM_IDS, SOCIAL_PLATFORMS } from "@/lib/socials";
 import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII } from "@/lib/themes";
 
+// Zod would otherwise probe `new Function("")` once in the browser to pick a faster parser; the
+// Content Security Policy (next.config.ts) has no 'unsafe-eval', so skip the probe instead of logging a violation.
+z.config({ jitless: true });
+
 /** Path segments that would collide with app routes if used as usernames. */
 export const RESERVED_USERNAMES = new Set([
   "login", "signup", "logout", "dashboard", "api", "l", "img", "themes", "admin", "settings",
@@ -24,6 +28,16 @@ export const passwordSchema = z
   .string()
   .min(8, "Password must be at least 8 characters")
   .max(128, "Password must be at most 128 characters");
+
+/** Changing the password: the current one proves it is the owner at the keyboard, the new one is typed twice. */
+export const passwordChangeSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Enter your current password").max(128),
+    newPassword: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.newPassword === v.confirmPassword, { message: "The passwords do not match", path: ["confirmPassword"] })
+  .refine((v) => v.newPassword !== v.currentPassword, { message: "Choose a different password", path: ["newPassword"] });
 
 /** A sign-up request: username, email and password. The display name starts as the username and is edited in the dashboard. */
 export const signupSchema = z.object({

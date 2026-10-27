@@ -70,6 +70,12 @@ function limiter(name: string, limit: number, windowMs: number): RateLimiter {
 
 /** 10 attempts per 15 minutes per IP: every sign-up, and failed logins only (a right password never spends the budget). */
 export const authLimiter = limiter("auth", 10, 15 * 60 * 1000);
+/**
+ * 20 wrong guesses per hour per account, whatever the address: the per-IP budget can be
+ * dodged by spoofing `x-forwarded-for` or by spreading guesses over many addresses, this
+ * one cannot. A right password never spends it, so the owner is not locked out by a guesser.
+ */
+export const accountLimiter = limiter("account", 20, 60 * 60 * 1000);
 /** 120 redirects per minute per IP on the click endpoint. */
 export const clickLimiter = limiter("click", 120, 60 * 1000);
 /** 300 public page views per minute per IP. */
