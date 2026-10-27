@@ -1,9 +1,5 @@
 name: CI
 
-# Runs on a self-hosted Linux runner (WSL2 on Andrea's desktop) while the repo is private,
-# because GitHub Free shares its 2,000 private-repo minutes across the whole account.
-# Switch every `runs-on` back to `ubuntu-latest` and remove the runner before making the
-# repo public: a self-hosted runner must never execute pull requests from strangers.
 on:
   push:
     branches: [main]
@@ -22,7 +18,7 @@ env:
 jobs:
   checks:
     name: Lint, types, unit and component tests
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -36,7 +32,7 @@ jobs:
 
   integration:
     name: Integration tests (PostgreSQL)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
@@ -82,7 +78,7 @@ jobs:
 
   e2e:
     name: End-to-end (Playwright, production build)
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:16-alpine
@@ -144,7 +140,7 @@ jobs:
 
   compose-smoke:
     name: docker compose smoke test
-    runs-on: [self-hosted, linux]
+    runs-on: ubuntu-latest
     needs: [checks, integration, e2e]
     env:
       # Own project name and a high port so the stack never collides with whatever else runs on the host.

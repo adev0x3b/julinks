@@ -4,7 +4,7 @@
 
 A link-in-bio service in the style of Linktree: claim a username, add links with pictures (uploaded, or grabbed from the link itself), group them in folders, put your social icons under a multi-line bio, drag everything into order, design your own theme (or pick one from the gallery), and share one page. Every click is counted and shown on a stats page. Invite only: a sign-up is a request that an admin or moderator approves with a role, or denies. The dashboard has a light and a dark mode.
 
-Built with **Next.js 16** (App Router, Cache Components, Server Actions), **React 19**, **TypeScript**, **Prisma 7**, **PostgreSQL 16** and **SeaweedFS** (S3 API) for images, shipped as a **docker compose** stack with a self-hosted GitHub Actions pipeline.
+Built with **Next.js 16** (App Router, Cache Components, Server Actions), **React 19**, **TypeScript**, **Prisma 7**, **PostgreSQL 16** and **SeaweedFS** (S3 API) for images, shipped as a **docker compose** stack with a GitHub Actions pipeline.
 
 | Theme studio with live preview | Public page |
 | --- | --- |
@@ -119,8 +119,6 @@ Without Docker, `npx tsx scripts/fake-s3.ts 3101` runs an in-memory S3 stand-in;
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck, all three suites (integration and e2e against a SeaweedFS container), and finally a smoke test of the real `docker compose` stack: it waits for `/api/health`, checks that the seeded profile and its avatar are served, that the gallery lists the seeded themes, follows a link and verifies the click landed in the database.
 
-> The workflow targets a self-hosted runner while the repository is private (GitHub Free shares its hosted minutes across the whole account). Before the repository goes public, switch `runs-on` back to `ubuntu-latest` and remove the runner.
-
 ## Security notes
 
 - Passwords are hashed with bcrypt (cost 12). Login compares against a dummy hash when the email is unknown, so timing does not reveal registered emails; whether a request is pending or denied is revealed only after the password matched.
@@ -154,3 +152,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck
 - Shared cache handler and Redis-backed rate limiting for multi-replica deployments.
 - Per-link UTM parameters and CSV export of stats.
 - Reporting and curation for the theme gallery.
+
+## About
+
+JuLinks is a portfolio project by Andrea Cracchiolo, built with [Claude Code](https://claude.com/claude-code) as a pair programmer: the product, the stack, the security decisions and the review of every change are mine. MIT licensed, see [LICENSE](LICENSE).

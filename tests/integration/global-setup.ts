@@ -14,7 +14,7 @@ declare module "vitest" {
  * in-memory stand-in started here.
  */
 export default async function globalSetup(project: TestProject) {
-  const url = process.env.TEST_DATABASE_URL ?? "postgresql://linkdeck:linkdeck@127.0.0.1:5432/linkdeck_test";
+  const url = process.env.TEST_DATABASE_URL ?? "postgresql://julinks:julinks@127.0.0.1:5432/julinks_test";
   process.env.DATABASE_URL = url;
   execSync("npx prisma migrate deploy", { stdio: "inherit", env: { ...process.env, DATABASE_URL: url } });
 
