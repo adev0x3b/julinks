@@ -6,7 +6,7 @@
 
 ## About
 
-Hello! My name is Andrea Cracchiolo. JuLinks is born because my wife wanted a linktree she could customize as she whished; I built it with [Claude Code](https://claude.com/claude-code) as a pair programmer and reviewed every change. MIT licensed, see [LICENSE](LICENSE).
+Hello! My name is Andrea Cracchiolo. JuLinks is born because my wife wanted a linktree she could customize as she wished; I built it with [Claude Code](https://claude.com/claude-code) as a pair programmer and reviewed every change. MIT licensed, see [LICENSE](LICENSE).
 
 Live at [links.juume.site](https://links.juume.site).
 
