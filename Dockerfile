@@ -6,7 +6,7 @@
 
 # Debian for the stages that run the Prisma CLI: `prisma migrate` still uses a native
 # schema engine that needs OpenSSL, and `npm ci` downloads the matching build.
-FROM node:22-bookworm-slim AS deps
+FROM node:26-bookworm-slim AS deps
 RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -34,7 +34,7 @@ CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx prisma/seed.ts"]
 
 # The server: the standalone bundle only. Same Debian base as the install, so the sharp
 # (libvips) binary that npm picked for glibc is the one that runs.
-FROM node:22-bookworm-slim AS runner
+FROM node:26-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 HOSTNAME=0.0.0.0 PORT=3000
 RUN groupadd --system app && useradd --system --gid app --home /app app
