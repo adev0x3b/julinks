@@ -12,8 +12,8 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
   return (
     <div className="flex flex-1 flex-col">
       <header className="border-b border-stone-200 bg-white">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-6 py-3">
-          <div className="flex items-center gap-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 sm:px-6">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
             <Logo href="/dashboard" />
             <nav className="flex items-center gap-1 text-sm">
               <Link href="/dashboard" className="btn-ghost">
@@ -65,7 +65,11 @@ async function UserMenu() {
   return (
     <div className="flex items-center gap-2 text-sm">
       <a href={`/${user.username}`} target="_blank" rel="noreferrer" className="btn-secondary" data-testid="view-page">
-        julinks/{user.username} ↗
+        <span>
+          <span className="hidden sm:inline">julinks/</span>
+          {user.username}
+        </span>
+        ↗
       </a>
       <form action={logout}>
         <button type="submit" className="btn-ghost">

@@ -70,7 +70,13 @@ export async function login(_prev: AuthFormState, formData: FormData): Promise<A
   if (user.status === "pending") return { values, toast: { tone: "info", message: PENDING_MESSAGE, at: Date.now() } };
   if (user.status === "denied") return { values, toast: { tone: "danger", message: DENIED_MESSAGE, at: Date.now() } };
   await createSession(user.id);
-  redirect("/dashboard");
+  redirect(returnPath(formData.get("next")));
+}
+
+/** Where to go after logging in: a path on this site, never another host. */
+function returnPath(next: FormDataEntryValue | null): string {
+  const path = typeof next === "string" ? next : "";
+  return path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\") ? path : "/dashboard";
 }
 
 export async function logout(): Promise<void> {

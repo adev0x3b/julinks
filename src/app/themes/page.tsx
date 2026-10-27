@@ -9,6 +9,7 @@ import { PublicProfile, sampleProfile } from "@/components/PublicProfile";
 import { GALLERY_TAG } from "@/lib/cache-tags";
 import { listGallery } from "@/lib/data/themes";
 import { imageUrl } from "@/lib/image-url";
+import { getCurrentUser } from "@/lib/session";
 
 export const metadata = { title: "Theme gallery", description: "Themes published by JuLinks users. Pick one and make it yours." };
 
@@ -23,16 +24,13 @@ async function loadGallery() {
 export default function GalleryPage() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-y-2">
         <Logo />
-        <nav className="flex items-center gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2">
           <ThemeToggle />
-          <Link href="/login" className="btn-ghost">
-            Log in
-          </Link>
-          <Link href="/dashboard/appearance" className="btn-primary">
-            Your appearance
-          </Link>
+          <Suspense fallback={<div className="h-9 w-40 animate-pulse rounded-lg bg-stone-100" />}>
+            <GalleryNav />
+          </Suspense>
         </nav>
       </header>
       <section className="py-10">
@@ -48,10 +46,37 @@ export default function GalleryPage() {
   );
 }
 
+/** Logged in: back to the studio. Logged out: log in or ask for a page. */
+async function GalleryNav() {
+  const user = await getCurrentUser();
+  if (user) {
+    return (
+      <>
+        <Link href="/dashboard" className="btn-ghost">
+          Dashboard
+        </Link>
+        <Link href="/dashboard/appearance" className="btn-primary">
+          Your appearance
+        </Link>
+      </>
+    );
+  }
+  return (
+    <>
+      <Link href="/login?next=/themes" className="btn-ghost">
+        Log in
+      </Link>
+      <Link href="/signup" className="btn-primary">
+        Request a page
+      </Link>
+    </>
+  );
+}
+
 async function Gallery() {
   // The list is request-time data (it changes as people publish), served from the tagged cache.
   await connection();
-  const themes = await loadGallery();
+  const [themes, user] = await Promise.all([loadGallery(), getCurrentUser()]);
   if (themes.length === 0) {
     return <p className="mt-10 text-sm text-stone-500">Nothing published yet. Be the first: Appearance → Publish.</p>;
   }
@@ -67,23 +92,27 @@ async function Gallery() {
                 <PublicProfile profile={sampleProfile(publicTheme)} preview />
               </div>
             </div>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="truncate text-sm font-semibold">{theme.name}</h2>
-                <p className="truncate text-xs text-stone-500">
-                  by{" "}
-                  <Link href={`/${theme.owner.username}`} className="hover:underline">
-                    @{theme.owner.username}
-                  </Link>
-                </p>
-              </div>
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-semibold">{theme.name}</h2>
+              <p className="truncate text-xs text-stone-500">
+                by{" "}
+                <Link href={`/${theme.owner.username}`} className="hover:underline">
+                  @{theme.owner.username}
+                </Link>
+              </p>
+            </div>
+            {user ? (
               <form action={useGalleryTheme}>
                 <input type="hidden" name="themeId" value={theme.id} />
-                <button type="submit" className="btn-secondary px-3 py-1.5 text-xs" aria-label={`Use ${theme.name}`}>
+                <button type="submit" className="btn-secondary w-full py-1.5 text-xs" aria-label={`Use ${theme.name}`}>
                   Use this theme
                 </button>
               </form>
-            </div>
+            ) : (
+              <Link href="/login?next=/themes" className="btn-secondary w-full py-1.5 text-xs" aria-label={`Log in to use ${theme.name}`}>
+                Log in to use it
+              </Link>
+            )}
           </li>
         );
       })}

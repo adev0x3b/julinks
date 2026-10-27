@@ -409,11 +409,20 @@ test("themes: start from a preset, customise, publish, and copy from the gallery
   // The seeded demo themes are there too.
   await expect(page.getByTestId("gallery-card").filter({ hasText: "Poetical Science" })).toBeVisible();
 
-  // Copy a seeded theme: it becomes ours, active, with the background copied under our prefix.
+  // Copy a seeded theme: it becomes ours, active, with the background copied under our prefix; the studio says so.
   await page.getByRole("button", { name: "Use Poetical Science" }).click();
   await expect(page).toHaveURL(/\/dashboard\/appearance\?theme=/);
+  await expect(page.getByTestId("studio-notice")).toContainText("is now on your page");
   await expect(page.getByTestId("theme-card")).toHaveCount(2);
   const copied = page.getByTestId("theme-card").filter({ hasText: "Poetical Science" });
+  await expect(copied).toContainText("Active");
+  // Taking it again does not pile up copies: the one we have comes back.
+  await page.getByRole("button", { name: "Use Sunset Mono" }).click();
+  await expect(copied).not.toContainText("Active");
+  await page.goto("/themes");
+  await page.getByRole("button", { name: "Use Poetical Science" }).click();
+  await expect(page.getByTestId("studio-notice")).toContainText("back on your page");
+  await expect(page.getByTestId("theme-card")).toHaveCount(2);
   await expect(copied).toContainText("Active");
   await page.goto(`/${user.username}`);
   await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Poetical Science");
@@ -493,6 +502,18 @@ test("dragging a link changes the public order", async ({ page }) => {
 test("auth guards and 404s", async ({ page }) => {
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/login$/);
+  // Logged out, the gallery offers to log in and brings you back afterwards.
+  await page.goto("/themes");
+  await expect(page.getByRole("link", { name: "Log in to use Poetical Science" })).toHaveAttribute("href", "/login?next=/themes");
+  await page.getByRole("link", { name: "Log in to use Poetical Science" }).click();
+  // By role: the gallery's sample pages linger hidden in the DOM with "Email" icons of their own.
+  await page.getByRole("textbox", { name: "Email" }).fill(user.email);
+  await page.getByRole("textbox", { name: "Password" }).fill(user.password);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).toHaveURL(/\/themes$/);
+  await expect(page.getByRole("link", { name: "Your appearance" })).toBeVisible();
+  await page.goto("/dashboard");
+  await logout(page);
   const response = await page.goto("/api/health");
   expect(response?.status()).toBe(200);
   await page.goto("/no-such-user-here");

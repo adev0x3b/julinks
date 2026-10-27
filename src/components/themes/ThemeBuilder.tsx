@@ -94,15 +94,19 @@ export function ThemeBuilder({
           <ColourField key={key} id={`colour-${key}`} label={label} value={draft.tokens[key]} onChange={(v) => setToken(key, v)} />
         ))}
 
-        <div>
-          <label className="label flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft.tokens.backgroundEnd !== null}
-              onChange={(ev) => setToken("backgroundEnd", ev.target.checked ? draft.tokens.background : null)}
-            />
-            Gradient
-          </label>
+        <div className="flex flex-col gap-3">
+          <div>
+            <p className="label">Gradient</p>
+            <label className="flex min-h-[38px] cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="checkbox"
+                checked={draft.tokens.backgroundEnd !== null}
+                onChange={(ev) => setToken("backgroundEnd", ev.target.checked ? draft.tokens.background : null)}
+              />
+              Fade the background into a second colour
+            </label>
+          </div>
           {draft.tokens.backgroundEnd !== null && (
             <ColourField id="colour-backgroundEnd" label="Gradient end" value={draft.tokens.backgroundEnd} onChange={(v) => setToken("backgroundEnd", v)} />
           )}

@@ -7,6 +7,7 @@ import {
   activateTheme,
   createTheme,
   deleteTheme,
+  findOwnCopy,
   getCopyableTheme,
   getOwnTheme,
   setThemePublic,
@@ -14,13 +15,13 @@ import {
   updateTheme,
 } from "@/lib/data/themes";
 import { rekeyImage } from "@/lib/images";
-import { requireUser } from "@/lib/session";
+import { getCurrentUser, requireUser } from "@/lib/session";
 import { copyObject, deleteObject } from "@/lib/storage";
 import { getPreset } from "@/lib/themes";
 import { fieldErrors, themeSchema } from "@/lib/validation";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
-export type CreateResult = { ok: true; themeId: string } | { ok: false; error: string };
+export type CreateResult = { ok: true; themeId: string; reused?: boolean } | { ok: false; error: string };
 export type SaveThemeState = { errors?: Record<string, string>; savedAt?: number };
 
 function message(error: unknown, fallback: string): string {
@@ -45,12 +46,21 @@ export async function createThemeFromPreset(presetId: string): Promise<CreateRes
 /**
  * Copies a public theme (or one of your own) into your themes and makes it
  * active. A copy, not a reference: the original's owner can keep editing,
- * unpublishing or deleting it without touching anyone else's page.
+ * unpublishing or deleting it without touching anyone else's page. Taking
+ * the same gallery theme twice activates the copy you already have.
  */
 export async function copyTheme(themeId: string): Promise<CreateResult> {
   const user = await requireUser();
   try {
     const source = await getCopyableTheme(user.id, themeId);
+    if (source.ownerId !== user.id) {
+      const existing = await findOwnCopy(user.id, source.id);
+      if (existing) {
+        await activateTheme(user.id, existing.id);
+        updateTag(profileTag(user.username));
+        return { ok: true, themeId: existing.id, reused: true };
+      }
+    }
     let backgroundKey: string | null = null;
     if (source.backgroundKey) {
       // Same content under the new owner's prefix, so the two themes never share an object.
@@ -70,11 +80,13 @@ export async function copyTheme(themeId: string): Promise<CreateResult> {
   }
 }
 
-/** The gallery's "Use this theme" button: copy, then go to the studio. */
+/** The gallery's "Use this theme" button: copy (or re-activate the earlier copy), then go to the studio, which says so. */
 export async function useGalleryTheme(formData: FormData): Promise<void> {
-  await requireUser();
+  // Visitors are sent to log in and come back here.
+  if (!(await getCurrentUser())) redirect("/login?next=/themes");
   const result = await copyTheme(String(formData.get("themeId") ?? ""));
-  redirect(result.ok ? `/dashboard/appearance?theme=${result.themeId}` : "/dashboard/appearance?error=copy");
+  if (!result.ok) redirect("/dashboard/appearance?error=copy");
+  redirect(`/dashboard/appearance?theme=${result.themeId}&${result.reused ? "reused" : "copied"}=1`);
 }
 
 export async function saveTheme(themeId: string, input: { name: string; tokens: unknown }): Promise<SaveThemeState> {

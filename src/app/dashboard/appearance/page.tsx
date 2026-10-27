@@ -1,4 +1,4 @@
-import { ThemeStudio } from "@/components/themes/ThemeStudio";
+import { ThemeStudio, type StudioNotice } from "@/components/themes/ThemeStudio";
 import { listFolders } from "@/lib/data/folders";
 import { listLinks } from "@/lib/data/links";
 import { listSocials } from "@/lib/data/socials";
@@ -10,7 +10,7 @@ export const metadata = { title: "Appearance" };
 
 export default async function AppearancePage({ searchParams }: PageProps<"/dashboard/appearance">) {
   const user = await requireUser();
-  const [{ theme, error }, themes, links, socials, folders] = await Promise.all([
+  const [{ theme, error, copied, reused }, themes, links, socials, folders] = await Promise.all([
     searchParams,
     listOwnThemes(user.id),
     listLinks(user.id),
@@ -49,7 +49,19 @@ export default async function AppearancePage({ searchParams }: PageProps<"/dashb
       }))}
       activeId={user.themeId}
       initialSelectedId={typeof theme === "string" ? theme : null}
-      notice={error === "copy" ? "That theme could not be copied." : null}
+      notice={studioNotice({ theme, error, copied, reused }, themes)}
     />
   );
+}
+
+type Params = Record<string, string | string[] | undefined>;
+
+/** What the gallery's "Use this theme" did, told once the studio opens. */
+function studioNotice({ theme, error, copied, reused }: Params, themes: { id: string; name: string }[]): StudioNotice | null {
+  if (error === "copy") return { tone: "error", text: "That theme could not be copied." };
+  const name = themes.find((t) => t.id === theme)?.name;
+  if (!name) return null;
+  if (copied === "1") return { tone: "success", text: `"${name}" is now on your page, as a copy of your own. Tweak it below.` };
+  if (reused === "1") return { tone: "success", text: `Your copy of "${name}" is back on your page.` };
+  return null;
 }
