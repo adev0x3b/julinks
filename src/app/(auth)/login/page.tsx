@@ -1,10 +1,11 @@
 import { Suspense } from "react";
+import { SetupGate } from "@/components/SetupGate";
 import { AuthShell } from "@/components/AuthShell";
 import { LoginForm } from "./LoginForm";
 
 export const metadata = { title: "Log in" };
 
-export default function LoginPage({ searchParams }: PageProps<"/login">) {
+function LoginContent({ searchParams }: PageProps<"/login">) {
   return (
     <AuthShell title="Welcome back">
       <Suspense>
@@ -26,5 +27,16 @@ async function ExpiredNotice({ searchParams }: Pick<PageProps<"/login">, "search
     <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">
       Your session has expired. Please log in again.
     </p>
+  );
+}
+
+/** Nothing public before the admin exists: see SetupGate. */
+export default function LoginPage(props: PageProps<"/login">) {
+  return (
+    <Suspense fallback={null}>
+      <SetupGate>
+        <LoginContent {...props} />
+      </SetupGate>
+    </Suspense>
   );
 }

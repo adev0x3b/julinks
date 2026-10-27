@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { SetupGate } from "@/components/SetupGate";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -24,7 +26,7 @@ const demo: PublicProfileData = {
   ].map((l) => ({ ...l, thumbnailUrl: null, imageLayout: "thumbnail" as const, imageFocus: CENTRE, folderId: null })),
 };
 
-export default function Home() {
+function Landing() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-8">
       <header className="flex flex-wrap items-center justify-between gap-y-2">
@@ -89,5 +91,16 @@ export default function Home() {
         .
       </footer>
     </main>
+  );
+}
+
+/** Nothing public before the admin exists: see SetupGate. */
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <SetupGate>
+        <Landing />
+      </SetupGate>
+    </Suspense>
   );
 }

@@ -11,6 +11,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
+    "setup-code": "tsx scripts/setup-code.ts",
     "test:e2e": "playwright test",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",

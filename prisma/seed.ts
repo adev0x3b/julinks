@@ -13,13 +13,15 @@ import sharp from "sharp";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { imageKey, processImage } from "../src/lib/images";
 import { putObject } from "../src/lib/storage";
+import { issueSetupCode } from "../src/lib/data/setup";
+import { setupBanner } from "../src/lib/setup-code";
 import type { ThemeTokens } from "../src/lib/themes";
 import { SOCIAL_PLATFORMS, type SocialPlatformId } from "../src/lib/socials";
 import type { ImageKind } from "../src/lib/validation";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
-/** Demo profiles are plain clients and never count as the first account: the first real sign-up becomes the admin. */
+/** Demo profiles are plain clients; the admin is created at /setup with the code printed below. */
 export const DEMO_USER = {
   username: "ada",
   email: "ada@example.com",
@@ -182,6 +184,10 @@ async function main() {
     }
     console.log(`Seeded /${user.username}: ${demo.links.length} links, theme "${demo.theme.name}" published`);
   }
+  // A fresh install gets its setup code here, so `docker compose up` prints it right after the seed lines.
+  // Every run while the site is still not set up replaces the code, so the latest log is always right.
+  const code = await issueSetupCode();
+  if (code) console.log(setupBanner(code, process.env.APP_URL || "http://localhost:3000"));
 }
 
 // The app keeps libvips' SVG decoder switched off (see src/lib/images.ts) because uploads are

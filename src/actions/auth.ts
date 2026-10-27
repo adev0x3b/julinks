@@ -24,9 +24,8 @@ function formValues(formData: FormData, keys: string[]): Record<string, string> 
 }
 
 /**
- * Invite only: a sign-up stores a pending request and does not log the user in. The
- * exception is the first account on a fresh install, which createUser approves and
- * makes admin on the spot, so there is someone to review the requests that follow.
+ * Invite only: a sign-up stores a pending request and does not log the user in. The admin
+ * who reviews requests was created at /setup, so there is always someone to do it.
  */
 export async function signup(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const values = formValues(formData, ["username", "email"]);
@@ -39,12 +38,8 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
     return { values, errors: fieldErrors(parsed.error) };
   }
   try {
-    const user = await createUser(
-      { ...parsed.data, displayName: parsed.data.username },
-      { firstAdminEmail: process.env.FIRST_ADMIN_EMAIL || undefined },
-    );
-    if (user.status !== "approved") return { requested: { username: user.username } };
-    await createSession(user.id);
+    const user = await createUser({ ...parsed.data, displayName: parsed.data.username });
+    return { requested: { username: user.username } };
   } catch (error) {
     if (error instanceof UniqueViolation) {
       return { values, errors: { [error.field]: `That ${error.field} is already taken` } };
@@ -52,7 +47,6 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
     if (error instanceof RequestsFull) return { values, errors: { form: error.message } };
     throw error;
   }
-  redirect("/dashboard");
 }
 
 export async function login(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {

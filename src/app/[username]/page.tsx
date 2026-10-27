@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { cacheLife, cacheTag } from "next/cache";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { SetupGate } from "@/components/SetupGate";
 import { PublicProfile } from "@/components/PublicProfile";
 import { profileTag } from "@/lib/cache-tags";
 import { getPublicProfile } from "@/lib/data/users";
@@ -37,7 +38,7 @@ export async function generateMetadata({ params }: PageProps<"/[username]">): Pr
   };
 }
 
-export default function PublicPage({ params }: PageProps<"/[username]">) {
+function PublicContent({ params }: PageProps<"/[username]">) {
   return (
     <main className="flex flex-1">
       <Suspense fallback={<Shell />}>
@@ -57,4 +58,15 @@ async function Profile({ params }: Pick<PageProps<"/[username]">, "params">) {
 /** Neutral placeholder in the default theme while the profile streams in. */
 function Shell() {
   return <div className="min-h-full w-full flex-1" style={{ background: pageBackground(DEFAULT_PRESET.tokens) }} aria-hidden />;
+}
+
+/** Nothing public before the admin exists: see SetupGate. */
+export default function PublicPage(props: PageProps<"/[username]">) {
+  return (
+    <Suspense fallback={null}>
+      <SetupGate>
+        <PublicContent {...props} />
+      </SetupGate>
+    </Suspense>
+  );
 }

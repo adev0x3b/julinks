@@ -14,10 +14,8 @@ export type NewUserOptions = {
   /** Defaults to a pending sign-up request; tests pass "approved". */
   status?: AccountStatus;
   role?: Role;
-  /** Seeded demo profiles: never the first account, never listed as requests. */
+  /** Seeded demo profiles: never admins, never listed as requests. */
   isDemo?: boolean;
-  /** When set, only a sign-up with this email can become the first admin; any other first account waits as a request. */
-  firstAdminEmail?: string;
 };
 
 export class UniqueViolation extends Error {
@@ -37,9 +35,8 @@ export const MAX_PENDING_REQUESTS = 100;
 
 /**
  * Stores a sign-up. Invite only: the account starts as a pending request unless the
- * options say otherwise, with one exception: the very first real account (demo
- * profiles do not count) is approved on the spot and made admin, so there is someone
- * to review the rest.
+ * options say otherwise. The admin that reviews requests is created by the setup flow
+ * (src/lib/data/setup.ts), never by a sign-up.
  */
 export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   const existing = await prisma.user.findFirst({
@@ -50,14 +47,13 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
     throw new UniqueViolation(existing.username === input.username ? "username" : "email");
   }
   const passwordHash = await hashPassword(input.password);
-  // Serializable so two "first" sign-ups cannot both see an empty table; the loser retries and lands as pending.
+  // Serializable so the pending-request cap holds under concurrent sign-ups; a loser retries.
   for (let attempt = 1; ; attempt += 1) {
     try {
       return await prisma.$transaction(
         async (tx) => {
-          const first = !options.isDemo && (await claimsFirstSeat(tx, input.email, options.firstAdminEmail));
-          const status = options.status ?? (first ? "approved" : "pending");
-          const role = options.role ?? (first ? "admin" : "client");
+          const status = options.status ?? "pending";
+          const role = options.role ?? "client";
           if (status === "pending" && (await tx.user.count({ where: { status: "pending" } })) >= MAX_PENDING_REQUESTS) {
             throw new RequestsFull();
           }
@@ -88,20 +84,6 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   }
 }
 
-type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
-
-/**
- * Whether this sign-up takes the first admin seat. Without FIRST_ADMIN_EMAIL it is the first
- * real account, full stop. With it, only that email does, and the seat stays open while
- * other sign-ups queue up as requests, until no real admin is missing any more.
- */
-async function claimsFirstSeat(tx: Tx, email: string, firstAdminEmail: string | undefined): Promise<boolean> {
-  if (firstAdminEmail) {
-    if (firstAdminEmail.trim().toLowerCase() !== email) return false;
-    return (await tx.user.count({ where: { isDemo: false, role: "admin" } })) === 0;
-  }
-  return (await tx.user.count({ where: { isDemo: false } })) === 0;
-}
 
 function isUniqueError(error: unknown): error is { code: string; meta?: { target?: unknown } } {
   return prismaCode(error) === "P2002";

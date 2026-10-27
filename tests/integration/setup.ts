@@ -11,6 +11,7 @@ const { prisma } = await import("@/lib/db");
 /** Every test starts from an empty database. Cascades delete links, clicks and themes. */
 beforeEach(async () => {
   await prisma.user.deleteMany();
+  await prisma.setupCode.deleteMany();
 });
 
 afterAll(async () => {

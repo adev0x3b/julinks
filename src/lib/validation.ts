@@ -10,7 +10,7 @@ z.config({ jitless: true });
 /** Path segments that would collide with app routes if used as usernames. */
 export const RESERVED_USERNAMES = new Set([
   "login", "signup", "logout", "dashboard", "api", "l", "img", "themes", "admin", "settings",
-  "stats", "static", "public", "assets", "uploads", "favicon.ico", "robots.txt", "sitemap.xml", "health",
+  "stats", "static", "public", "assets", "uploads", "favicon.ico", "robots.txt", "sitemap.xml", "health", "setup",
 ]);
 
 export const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])?$/;
@@ -45,6 +45,17 @@ export const signupSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
   password: passwordSchema,
 });
+
+/** First-run setup: the code the migrate step printed, and the admin account to create. */
+export const setupSchema = z
+  .object({
+    code: z.string().trim().min(1, "Enter the setup code"),
+    username: usernameSchema,
+    email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match" });
 
 /** A reviewer's decision on a sign-up request. */
 export const decisionSchema = z.discriminatedUnion("status", [

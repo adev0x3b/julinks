@@ -2,6 +2,7 @@ import { cacheLife, cacheTag } from "next/cache";
 import { connection } from "next/server";
 import Link from "next/link";
 import { Suspense } from "react";
+import { SetupGate } from "@/components/SetupGate";
 import { useGalleryTheme } from "@/actions/themes";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -21,7 +22,7 @@ async function loadGallery() {
   return listGallery();
 }
 
-export default function GalleryPage() {
+function GalleryContent() {
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 py-8">
       <header className="flex flex-wrap items-center justify-between gap-y-2">
@@ -117,5 +118,16 @@ async function Gallery() {
         );
       })}
     </ul>
+  );
+}
+
+/** Nothing public before the admin exists: see SetupGate. */
+export default function GalleryPage() {
+  return (
+    <Suspense fallback={null}>
+      <SetupGate>
+        <GalleryContent />
+      </SetupGate>
+    </Suspense>
   );
 }

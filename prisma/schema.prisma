@@ -24,9 +24,9 @@ model User {
   themeId      String?
   /// Sign-ups are requests: an admin or moderator approves or denies them before the account can log in.
   status       AccountStatus @default(pending)
-  /// What the account may do once approved. The first account ever created is the admin.
+  /// What the account may do once approved. The admin is created at /setup with the code the migrate step prints.
   role         Role     @default(client)
-  /// Seeded demo profiles (/ada, /grace): never admins, never listed as requests, and they do not count as the "first account".
+  /// Seeded demo profiles (/ada, /grace): never admins, never listed as requests, and a site with only them is still "not set up".
   isDemo       Boolean  @default(false)
   /// Stamped into session tokens; a password change bumps it, which logs every other device out.
   sessionVersion Int    @default(0)
@@ -147,4 +147,16 @@ model Theme {
   @@index([ownerId, updatedAt])
   @@index([isPublic, publishedAt])
   @@map("themes")
+}
+
+/// The one-time code that creates the admin account on a fresh install (src/lib/data/setup.ts).
+/// One row at most; only the bcrypt hash is stored, the plain code is printed by the migrate step.
+model SetupCode {
+  id        Int      @id
+  codeHash  String
+  /// Wrong guesses so far; the code stops working after MAX_SETUP_ATTEMPTS.
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("setup_codes")
 }

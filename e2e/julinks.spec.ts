@@ -1,8 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import pg from "pg";
 import sharp from "sharp";
 import { E2E_DATABASE_URL, E2E_SESSION_SECRET } from "../playwright.config";
+import { generateSetupCode } from "../src/lib/setup-code";
 
 const run = Date.now().toString(36);
 const user = {
@@ -68,16 +70,55 @@ async function addLink(page: Page, title: string, url: string) {
 
 test.describe.configure({ mode: "serial" });
 
-// The chain starts from "only the demo profiles exist", so the first sign-up becomes the admin.
-// Done here rather than in a global setup because a retry re-runs the whole serial chain and must start clean too.
+// The code the migrate step would have printed; the chain types it into /setup to create the admin.
+const setupCode = generateSetupCode();
+
+// The chain starts from "only the demo profiles exist", which is a site that is not set up yet, with a
+// setup code of our own in place of the printed one. Done here rather than in a global setup because a
+// retry re-runs the whole serial chain and must start clean too.
 test.beforeAll(async () => {
   const client = new pg.Client({ connectionString: E2E_DATABASE_URL });
   await client.connect();
   try {
     await client.query('delete from users where "isDemo" = false');
+    await client.query('delete from setup_codes');
+    await client.query('insert into setup_codes (id, "codeHash") values (1, $1)', [await bcrypt.hash(setupCode, 4)]);
   } finally {
     await client.end();
   }
+});
+
+test("a fresh install shows nothing until the admin is created with the setup code", async ({ page }) => {
+  // Every public page, the demo profiles included, goes to /setup.
+  for (const path of ["/", "/ada", "/themes", "/login", "/signup"]) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/setup$/);
+  }
+  await expect(page.getByRole("heading", { name: "Set up JuLinks" })).toBeVisible();
+
+  // A wrong code is counted and refused; the typed username and email survive the round trip.
+  await page.getByLabel("Setup code").fill("ABCD-EFGH-JKLM");
+  await page.getByLabel("Username").fill(user.username);
+  await page.getByLabel("Email").fill(user.email);
+  await page.getByLabel("Password", { exact: true }).fill(user.password);
+  await page.getByLabel("Confirm password").fill(user.password);
+  await page.getByRole("button", { name: "Create the admin account" }).click();
+  await expect(page.locator("#code-error")).toContainText("Wrong code");
+  await expect(page.getByLabel("Username")).toHaveValue(user.username);
+
+  // The right one, typed sloppily, creates the admin and logs them in.
+  await page.getByLabel("Setup code").fill(setupCode.toLowerCase().replace(/-/g, " "));
+  await page.getByLabel("Password", { exact: true }).fill(user.password);
+  await page.getByLabel("Confirm password").fill(user.password);
+  await page.getByRole("button", { name: "Create the admin account" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByTestId("requests-nav")).toBeVisible();
+  await expect(page.getByTestId("requests-count")).toHaveCount(0);
+  await logout(page);
+
+  // Setup is closed from now on.
+  await page.goto("/setup");
+  await expect(page.getByTestId("setup-done")).toBeVisible();
 });
 
 test("landing page shows the seeded demo profile", async ({ page }) => {
@@ -89,18 +130,7 @@ test("landing page shows the seeded demo profile", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Poetical science" })).toHaveAttribute("href", /^\/l\//);
 });
 
-test("invite only: the first real account is the admin, requests wait for approval, denied ones are told so at login", async ({ page }) => {
-  // The database holds only the seeded demo profiles, which do not count: this sign-up becomes the admin and lands in the dashboard.
-  await page.goto("/signup");
-  await page.getByLabel("Username").fill(user.username);
-  await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Request my page" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByTestId("requests-nav")).toBeVisible();
-  await expect(page.getByTestId("requests-count")).toHaveCount(0);
-  await logout(page);
-
+test("invite only: requests wait for approval, denied ones are told so at login", async ({ page }) => {
   await requestPage(page, newcomer);
   await requestPage(page, refused);
 
