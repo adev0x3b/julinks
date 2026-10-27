@@ -50,6 +50,12 @@ export async function getOwnTheme(userId: string, themeId: string): Promise<Them
   return toRecord(row);
 }
 
+/** The user's own copy of another user's theme, if they already took one. */
+export async function findOwnCopy(userId: string, sourceId: string): Promise<ThemeRecord | null> {
+  const row = await prisma.theme.findFirst({ where: { ownerId: userId, forkedFromId: sourceId }, orderBy: { createdAt: "asc" }, select: themeSelect });
+  return row ? toRecord(row) : null;
+}
+
 /** The theme on the user's public page, or the default preset when none is set. */
 export async function getActiveTheme(userId: string): Promise<{ id: string | null; name: string; tokens: ThemeTokens; backgroundKey: string | null }> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { theme: { select: themeSelect } } });

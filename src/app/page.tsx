@@ -27,9 +27,9 @@ const demo: PublicProfileData = {
 export default function Home() {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-8">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-y-2">
         <Logo />
-        <nav className="flex items-center gap-2">
+        <nav className="flex items-center gap-1 sm:gap-2">
           <ThemeToggle />
           <Link href="/themes" className="btn-ghost">
             Themes

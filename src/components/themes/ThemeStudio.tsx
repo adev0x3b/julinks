@@ -21,6 +21,8 @@ export type StudioTheme = {
   forkedFromId: string | null;
 };
 
+export type StudioNotice = { tone: "success" | "error"; text: string };
+
 export type StudioUser = {
   username: string;
   displayName: string;
@@ -50,12 +52,12 @@ export function ThemeStudio({
   themes: StudioTheme[];
   activeId: string | null;
   initialSelectedId: string | null;
-  notice: string | null;
+  notice: StudioNotice | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId ?? activeId);
-  const [error, setError] = useState<string | null>(notice);
+  const [error, setError] = useState<string | null>(notice?.tone === "error" ? notice.text : null);
   const [draft, setDraft] = useState<{ name: string; tokens: ThemeTokens } | null>(null);
   const [draftFor, setDraftFor] = useState<string | null>(null);
 
@@ -105,6 +107,11 @@ export function ThemeStudio({
         {error && (
           <p className="error mt-0 rounded-lg bg-red-50 p-3" role="alert">
             {error}
+          </p>
+        )}
+        {!error && notice?.tone === "success" && (
+          <p className="notice-success" role="status" data-testid="studio-notice">
+            {notice.text}
           </p>
         )}
 

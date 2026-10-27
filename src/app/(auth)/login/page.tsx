@@ -10,7 +10,10 @@ export default function LoginPage({ searchParams }: PageProps<"/login">) {
       <Suspense>
         <ExpiredNotice searchParams={searchParams} />
       </Suspense>
-      <LoginForm />
+      {/* The form reads ?next= on the client, so it waits behind Suspense while the shell prerenders. */}
+      <Suspense>
+        <LoginForm />
+      </Suspense>
     </AuthShell>
   );
 }

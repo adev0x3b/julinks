@@ -20,13 +20,14 @@ export function DailyClicksChart({ data }: { data: DailyCount[] }) {
   return (
     <figure>
       <svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-labelledby="daily-title">
-        <title id="daily-title">Clicks per day over the last {data.length} days</title>
+        {/* Titles take one string: React renders a title's children as one text node, and hydration expects the same. */}
+        <title id="daily-title">{`Clicks per day over the last ${data.length} days`}</title>
         {ticks.map((t) => {
           const y = padTop + innerH - (t / max) * innerH;
           return (
             <g key={t}>
-              <line x1={padLeft} x2={width - 8} y1={y} y2={y} stroke="#e7e5e4" strokeDasharray={t === 0 ? undefined : "3 3"} />
-              <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#78716c">
+              <line x1={padLeft} x2={width - 8} y1={y} y2={y} className="stroke-stone-200" strokeDasharray={t === 0 ? undefined : "3 3"} />
+              <text x={padLeft - 6} y={y + 4} textAnchor="end" fontSize="10" className="fill-stone-500">
                 {t}
               </text>
             </g>
@@ -39,13 +40,11 @@ export function DailyClicksChart({ data }: { data: DailyCount[] }) {
           const showLabel = labelled(i);
           return (
             <g key={d.day}>
-              <rect x={x} y={y} width={barW} height={h} rx={2} fill="#6366f1">
-                <title>
-                  {d.day}: {d.count}
-                </title>
+              <rect x={x} y={y} width={barW} height={h} rx={2} className="fill-brand-500">
+                <title>{`${d.day}: ${d.count}`}</title>
               </rect>
               {showLabel && (
-                <text x={x + barW / 2} y={height - 6} textAnchor="middle" fontSize="10" fill="#78716c">
+                <text x={x + barW / 2} y={height - 6} textAnchor="middle" fontSize="10" className="fill-stone-500">
                   {d.day.slice(5)}
                 </text>
               )}
