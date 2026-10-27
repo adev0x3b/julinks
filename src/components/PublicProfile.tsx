@@ -153,14 +153,15 @@ export function PublicProfile({
         );
         return folder.collapsed ? (
           // Native disclosure: works without JavaScript and inside the hook-free preview.
-          <details key={folder.id} className="jl-folder group mt-3 w-full max-w-sm" data-folder={folder.id} data-collapsed="true">
+          // Open, the row's own box grows to hold the links as plain rows (styles in globals.css, .jl-disclosure).
+          <details key={folder.id} className="jl-folder jl-disclosure group mt-3 w-full max-w-sm" data-folder={folder.id} data-collapsed="true">
             <summary className="jl-button flex w-full cursor-pointer list-none items-center justify-center gap-2 px-12 py-3 text-center text-sm font-medium transition hover:-translate-y-0.5 [&::-webkit-details-marker]:hidden">
               {folder.title}
               <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} className="transition group-open:rotate-180" aria-hidden>
                 <path d="M3 6l5 5 5-5" />
               </svg>
             </summary>
-            <div className="mt-3">{list}</div>
+            <div className="jl-disclosure-body mt-3">{list}</div>
           </details>
         ) : (
           <section key={folder.id} className="jl-folder mt-8 w-full max-w-sm" data-folder={folder.id} data-collapsed="false">
