@@ -5,6 +5,7 @@
 services:
   db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: julinks
       POSTGRES_PASSWORD: julinks
@@ -24,6 +25,7 @@ services:
   s3:
     image: chrislusf/seaweedfs:4.48
     command: server -s3 -dir=/data -volume.max=10 -master.volumeSizeLimitMB=256
+    restart: unless-stopped
     # SeaweedFS logs a lock-ring heartbeat every 30 s; keep it out of `docker compose up`
     # (still available with `docker compose logs s3`).
     attach: false
@@ -59,6 +61,9 @@ services:
     build:
       context: .
       target: runner
+    # db, s3 and web come back with the Docker daemon (a reboot, a `docker compose up -d` left
+    # running); `docker compose down` or `stop` still stops them. migrate is one-shot by design.
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://julinks:julinks@db:5432/julinks
       SESSION_SECRET: "${SESSION_SECRET:?set it in .env, see .env.example; a public site uses the output of openssl rand -base64 48}"

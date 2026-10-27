@@ -92,7 +92,7 @@ The compose defaults suit a laptop. Before the app answers to a real hostname, i
 5. `FIRST_ADMIN_EMAIL`: your own address, so the first admin seat cannot be grabbed by whoever finds the site first (moot once you have an admin).
 6. `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY`: real credentials, configured on the storage side too, or point `S3_*` at a managed bucket. Inside the compose network the bucket is not published, so this matters when the storage is.
 
-Then `docker compose up --build` as usual; migrations apply on start, nothing is wiped.
+Then `docker compose up --build -d`; migrations apply on start, nothing is wiped. `db`, `s3` and `web` carry `restart: unless-stopped`, so once Docker itself starts with the machine the site comes back after a reboot with no further command (`docker compose down` still stops it for good).
 
 **Cloudflare Tunnel** (what the author runs): `cloudflared` on the same machine points at `http://localhost:3000`, so the stack is reachable only through Cloudflare. Settings worth turning on in the Cloudflare dashboard: *Always Use HTTPS* and a minimum TLS version of 1.2 (SSL/TLS → Edge Certificates), *Bot Fight Mode* (Security → Bots), and one rate-limiting rule on `/login` and `/signup` (Security → WAF → Rate limiting rules; the free plan includes one). Optionally put a Zero Trust Access policy in front of `/dashboard` so only your own email can reach the editor at all; the public pages stay public.
 
