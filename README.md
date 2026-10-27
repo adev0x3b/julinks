@@ -24,7 +24,7 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 
 ## What it does
 
-- **Invite-only accounts**: asking for a page (username, email, password) stores a *request*; nobody can log in until it is approved. The first account on a fresh install is approved on the spot and becomes the admin. Admins and moderators get a **Requests** page in the dashboard with the number waiting in the nav: approve with a role (`client`, `moderator` or `admin`) or deny. A pending or denied requester sees a toast at login saying so, but only with the right password, so the login form cannot be used to find out who has asked. Decisions can be revisited: a denied request approved later, an approved account revoked (its session and public page go away at once) or given another role. Moderators only make clients and cannot touch moderators or admins; nobody reviews themselves. Sessions are signed JWTs in an `httpOnly`, `SameSite=Lax` cookie, valid for seven days.
+- **Invite-only accounts**: asking for a page (username, email, password) stores a *request*; nobody can log in until it is approved. The first real account on a fresh install is approved on the spot and becomes the admin (the seeded demo profiles do not count, are plain clients and never show up as requests). Admins and moderators get a **Requests** page in the dashboard with the number waiting in the nav: approve with a role (`client`, `moderator` or `admin`) or deny. A pending or denied requester sees a toast at login saying so, but only with the right password, so the login form cannot be used to find out who has asked. Decisions can be revisited: a denied request approved later, an approved account revoked (its session and public page go away at once) or given another role. Moderators only make clients and cannot touch moderators or admins; nobody reviews themselves. Sessions are signed JWTs in an `httpOnly`, `SameSite=Lax` cookie, valid for seven days.
 - **Link editor** at `/dashboard`: add, edit, enable/disable and delete links, drag-and-drop or keyboard reordering, with a phone-sized live preview that updates as you type.
 - **Pictures**: an avatar, a picture per link and a background image per theme. A link's picture shows either small beside the title or big above it, like a card, and both it and the avatar can be centred on any point: click the picture (or drag) and the page crops around that point with `object-fit`, so nothing is thrown away at upload time. Uploads are decoded, resized, stripped of metadata and re-encoded as WebP with `sharp`, then stored in an S3 bucket (SeaweedFS in the compose stack) under a content-addressed key and served through `/img/…` with an immutable cache header.
 - **Themes** at `/dashboard/appearance`: start from one of five presets, then change every colour, gradient, button style, corner radius and font, add a background image with an adjustable darkening overlay, and save it as a named theme. Several themes per account; the active one is what visitors see.
@@ -63,8 +63,8 @@ docker compose up --build
 Then open <http://localhost:3000>. Four services: PostgreSQL, SeaweedFS (S3), a one-shot `migrate` container (migrations, demo profiles, demo images uploaded to the bucket) and `web`, which starts once `migrate` has finished.
 
 - Demo pages: <http://localhost:3000/ada> and <http://localhost:3000/grace>; gallery at <http://localhost:3000/themes>
-- Demo login: `ada@example.com` / `analytical-engine` (Ada is the admin: her **Requests** page is where sign-ups get approved or denied)
-- Fresh database without the demo seed: the first account you create is approved and made admin automatically.
+- Demo login: `ada@example.com` / `analytical-engine` (a plain client, like every demo profile)
+- Your own account: the first one you create is approved and made admin automatically, and its **Requests** page is where later sign-ups get approved or denied.
 - Change the host port with `WEB_PORT=8080 docker compose up`; set `SESSION_SECRET` and `S3_SECRET_ACCESS_KEY` for anything that is not a demo.
 - Pointing the app at AWS S3, Cloudflare R2 or another S3-compatible service is a matter of the `S3_*` variables (see `.env.example`).
 
@@ -96,7 +96,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck
 ## Security notes
 
 - Passwords are hashed with bcrypt (cost 12). Login compares against a dummy hash when the email is unknown, so timing does not reveal registered emails; whether a request is pending or denied is revealed only after the password matched.
-- Review rights are enforced in the data layer inside the same transaction that reads the target's role, not only in the UI; the first-account bootstrap runs serializable so two simultaneous first sign-ups cannot both become admin.
+- Review rights are enforced in the data layer inside the same transaction that reads the target's role, not only in the UI; the first-account bootstrap runs serializable so two simultaneous first sign-ups cannot both become admin. Demo profiles, whose passwords are public, can never be admins.
 - Server Actions and route handlers never trust the client for authorisation; the session is verified on every call and every write is scoped to the owner.
 - Link URLs are limited to `http(s)`; `javascript:`, `data:` and friends are rejected server-side.
 - Uploads are capped at 5 MB, must decode as PNG, JPEG, WebP or GIF, and are always re-encoded: what gets stored and served is a WebP the server produced, never the original bytes. Storage keys are generated by the app and the image route serves only keys of that shape.

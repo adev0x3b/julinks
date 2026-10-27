@@ -10,9 +10,11 @@ export type NewUser = { username: string; email: string; password: string; displ
 export type AccountStatus = "pending" | "approved" | "denied";
 export type { Role };
 export type NewUserOptions = {
-  /** Defaults to a pending sign-up request; seeds pass "approved". */
+  /** Defaults to a pending sign-up request; tests pass "approved". */
   status?: AccountStatus;
   role?: Role;
+  /** Seeded demo profiles: never the first account, never listed as requests. */
+  isDemo?: boolean;
 };
 
 export class UniqueViolation extends Error {
@@ -23,8 +25,9 @@ export class UniqueViolation extends Error {
 
 /**
  * Stores a sign-up. Invite only: the account starts as a pending request unless the
- * options say otherwise, with one exception: the very first account on a fresh
- * install is approved on the spot and made admin, so there is someone to review the rest.
+ * options say otherwise, with one exception: the very first real account (demo
+ * profiles do not count) is approved on the spot and made admin, so there is someone
+ * to review the rest.
  */
 export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   const existing = await prisma.user.findFirst({
@@ -40,7 +43,7 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
     try {
       return await prisma.$transaction(
         async (tx) => {
-          const first = (await tx.user.count()) === 0;
+          const first = !options.isDemo && (await tx.user.count({ where: { isDemo: false } })) === 0;
           const status = options.status ?? (first ? "approved" : "pending");
           const role = options.role ?? (first ? "admin" : "client");
           return tx.user.create({
@@ -51,6 +54,7 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
               displayName: input.displayName,
               status,
               role,
+              isDemo: options.isDemo ?? false,
               reviewedAt: status === "pending" ? null : new Date(),
             },
             select: { id: true, username: true, email: true, displayName: true, status: true, role: true },

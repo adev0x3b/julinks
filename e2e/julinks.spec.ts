@@ -11,8 +11,9 @@ const user = {
   // A new account's display name starts as its username.
   displayName: `e2e${run}`,
 };
+// Two more sign-ups: one gets approved as a client, one denied.
+const newcomer = { username: `new${run}`, email: `new-${run}@example.com`, password: "correct horse battery staple" };
 const refused = { username: `nope${run}`, email: `nope-${run}@example.com`, password: "correct horse battery staple" };
-const admin = { email: "ada@example.com", password: "analytical-engine" };
 
 type Credentials = { username: string; email: string; password: string };
 
@@ -73,28 +74,41 @@ test("landing page shows the seeded demo profile", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Poetical science" })).toHaveAttribute("href", /^\/l\//);
 });
 
-test("invite only: requests wait for approval, denied ones are told so at login", async ({ page }) => {
-  await requestPage(page, user);
+test("invite only: the first real account is the admin, requests wait for approval, denied ones are told so at login", async ({ page }) => {
+  // The database holds only the seeded demo profiles, which do not count: this sign-up becomes the admin and lands in the dashboard.
+  await page.goto("/signup");
+  await page.getByLabel("Username").fill(user.username);
+  await page.getByLabel("Email").fill(user.email);
+  await page.getByLabel("Password").fill(user.password);
+  await page.getByRole("button", { name: "Request my page" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByTestId("requests-nav")).toBeVisible();
+  await expect(page.getByTestId("requests-count")).toHaveCount(0);
+  await logout(page);
+
+  await requestPage(page, newcomer);
   await requestPage(page, refused);
 
   // A pending request cannot log in yet; the toast says so.
-  await submitLogin(page, user);
+  await submitLogin(page, newcomer);
   await expect(page.getByTestId("toast")).toContainText("waiting for approval");
   await expect(page).toHaveURL(/\/login$/);
   // Nor does it have a public page.
-  await page.goto(`/${user.username}`);
+  await page.goto(`/${newcomer.username}`);
   await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
 
   // The admin sees both requests, approves one as a client and denies the other.
-  await loginAs(page, admin);
+  await login(page);
   await expect(page.getByTestId("requests-count")).toHaveText("2");
   await page.getByTestId("requests-nav").click();
   await expect(page).toHaveURL(/\/dashboard\/requests$/);
   const pendingRows = page.getByTestId("pending-requests").getByTestId("request-row");
   await expect(pendingRows).toHaveCount(2);
-  await page.getByLabel(`Role for ${user.username}`).selectOption("client");
-  await page.getByRole("button", { name: `Approve ${user.username}` }).click();
-  await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${user.username}` })).toHaveAttribute("data-status", "approved");
+  // Demo profiles are not requests.
+  await expect(page.getByTestId("request-row").filter({ hasText: "/ada" })).toHaveCount(0);
+  await page.getByLabel(`Role for ${newcomer.username}`).selectOption("client");
+  await page.getByRole("button", { name: `Approve ${newcomer.username}` }).click();
+  await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${newcomer.username}` })).toHaveAttribute("data-status", "approved");
   await page.getByRole("button", { name: `Deny ${refused.username}` }).click();
   await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${refused.username}` })).toHaveAttribute("data-status", "denied");
   await expect(page.getByTestId("no-pending")).toBeVisible();
@@ -107,10 +121,13 @@ test("invite only: requests wait for approval, denied ones are told so at login"
   await expect(page).toHaveURL(/\/login$/);
 
   // Approved: logs in normally, and clients never see the Requests page.
-  await login(page);
+  await loginAs(page, newcomer);
   await expect(page.getByTestId("requests-nav")).toHaveCount(0);
   await page.goto("/dashboard/requests");
   await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
+  // Leave the browser logged out so the next test logs in as the admin again.
+  await page.goto("/dashboard");
+  await logout(page);
 });
 
 test("edit links and profile, and see the public page update", async ({ page }) => {

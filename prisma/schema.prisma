@@ -26,6 +26,8 @@ model User {
   status       AccountStatus @default(pending)
   /// What the account may do once approved. The first account ever created is the admin.
   role         Role     @default(client)
+  /// Seeded demo profiles (/ada, /grace): never admins, never listed as requests, and they do not count as the "first account".
+  isDemo       Boolean  @default(false)
   reviewedAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
