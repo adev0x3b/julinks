@@ -40,6 +40,7 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 - **Public page** at `/username`: server-rendered, cached per user and invalidated the moment the owner changes something.
 - **Click tracking**: every link on the public page goes through `/l/:id`, which redirects and records the click (and the referrer's host, nothing more) after the response is sent.
 - **Stats** at `/dashboard/stats`: totals, a 30-day daily chart, clicks per link and top referrers.
+- **Account** at `/dashboard/account`: change the password (the current one is required); every other device is logged out, the one making the change stays in.
 
 ## Parts worth reading
 
@@ -79,6 +80,18 @@ Then open <http://localhost:3000>. Four services: PostgreSQL, SeaweedFS (S3), a 
 - Change the host port with `WEB_PORT=8080 docker compose up`; set `SESSION_SECRET` and `S3_SECRET_ACCESS_KEY` for anything that is not a demo, and `APP_URL` to the public address (it is used for absolute URLs in page metadata).
 - Pointing the app at AWS S3, Cloudflare R2 or another S3-compatible service is a matter of the `S3_*` variables (see `.env.example`).
 
+### Putting it on the internet
+
+The compose defaults suit a laptop. Before the app answers to a real hostname:
+
+1. Put a `SESSION_SECRET` of at least 32 random characters in `.env` (`openssl rand -base64 48`). The app refuses to start sessions with the compose default once `APP_URL` is not localhost.
+2. Set `APP_URL` to the public address and serve it over HTTPS (a reverse proxy such as Caddy or nginx in front of port 3000). Session cookies are `Secure` in production, so plain `http://` on anything but localhost cannot log in. Set `TRUST_PROXY=1` when the proxy appends the client address to `X-Forwarded-For`, so the per-IP rate limits key on the visitor, not on the proxy.
+3. Set `ALLOW_DEMO_LOGIN=0`: the demo profiles stay visible, but nobody can log in as `ada` and rewrite the showcase. Or skip the seed and have no demo profiles at all.
+4. Set `FIRST_ADMIN_EMAIL` to your own address before the first sign-up, so the first admin seat cannot be grabbed by whoever finds the site first.
+5. Set `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` to real credentials (and configure them on the storage side) or point `S3_*` at a managed bucket.
+
+Then `docker compose up --build` as usual; migrations apply on start, nothing is wiped.
+
 ### Local development
 
 ```bash
@@ -96,9 +109,9 @@ Without Docker, `npx tsx scripts/fake-s3.ts 3101` runs an in-memory S3 stand-in;
 
 | Command | What runs | Needs |
 | --- | --- | --- |
-| `npm test` | Unit tests (validation incl. theme tokens, bio lines, socials and review decisions; roles; social platform URLs; link preview parsing and the private-address guard against a local server; image pipeline; rate limiter; session tokens; reorder helper) and component tests in jsdom (public page incl. folders and icons, chart, toast) | nothing |
-| `npm run test:integration` | The data layer against a real database and object storage: first-account bootstrap, request review rules, folders, socials, grabbing a preview image from a local page into storage, uniqueness, ownership checks, reordering, click aggregation, theme rules, storage round trips | PostgreSQL via `TEST_DATABASE_URL`; an S3 service via `TEST_S3_ENDPOINT`, otherwise the in-memory S3 stand-in starts itself |
-| `npm run test:e2e` | Playwright against a production build: sign-up request, approval and denial, editing, bio lines, social icons, folders (open and collapsed), preview image grabbed from a link, dark mode, uploads served back as WebP with the small/big layout and focal point, theme studio, gallery, cache invalidation, click redirect and stats, pointer reordering, auth guards | PostgreSQL via `E2E_DATABASE_URL`, `npm run build` first; an S3 service via `E2E_S3_ENDPOINT`, otherwise the stand-in |
+| `npm test` | Unit tests (validation incl. theme tokens, bio lines, socials and review decisions; roles; social platform URLs; link preview parsing and the private-address guard against a local server; image pipeline; rate limiter; session tokens incl. versions and the demo-secret guard; client address behind a proxy; deployment switches; reorder helper) and component tests in jsdom (public page incl. folders and icons, chart, toast) | nothing |
+| `npm run test:integration` | The data layer against a real database and object storage: first-account bootstrap incl. `FIRST_ADMIN_EMAIL`, the pending-request cap, password change, request review rules, folders, socials, grabbing a preview image from a local page into storage, uniqueness, ownership checks, reordering, click aggregation, theme rules, storage round trips | PostgreSQL via `TEST_DATABASE_URL`; an S3 service via `TEST_S3_ENDPOINT`, otherwise the in-memory S3 stand-in starts itself |
+| `npm run test:e2e` | Playwright against a production build: sign-up request, approval and denial, editing, bio lines, social icons, folders (open and collapsed), preview image grabbed from a link, dark mode, uploads served back as WebP with the small/big layout and focal point, theme studio, gallery, cache invalidation, click redirect and stats, pointer reordering, auth guards, password change logging the other device out | PostgreSQL via `E2E_DATABASE_URL`, `npm run build` first; an S3 service via `E2E_S3_ENDPOINT`, otherwise the stand-in |
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck, all three suites (integration and e2e against a SeaweedFS container), and finally a smoke test of the real `docker compose` stack: it waits for `/api/health`, checks that the seeded profile and its avatar are served, that the gallery lists the seeded themes, follows a link and verifies the click landed in the database.
 
@@ -113,7 +126,9 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck
 - Uploads are capped at 5 MB, must decode as PNG, JPEG, WebP or GIF, and are always re-encoded: what gets stored and served is a WebP the server produced, never the original bytes. Storage keys are generated by the app and the image route serves only keys of that shape.
 - Theme tokens are validated with a strict schema (6-digit hex colours, enum values, a bounded number); the CSS the page uses is built from those, so a theme cannot smuggle `url()` or expressions into a style attribute.
 - Upload actions are rate limited per user.
-- Sign-ups, wrong login guesses and the click redirect are rate limited per IP (a right password never spends the login budget, so a household behind one address is not locked out); responses carry `X-Frame-Options`, `nosniff` and a referrer policy.
+- Wrong login guesses are limited twice: per IP (10 per 15 minutes) and per account (20 per hour), so neither spoofing `X-Forwarded-For` nor spreading guesses over many addresses gets around it; a right password never spends either budget, so a household behind one address is not locked out and a guesser cannot lock the owner out. Sign-ups and the click redirect are limited per IP, and the sign-up form stops taking requests once 100 are waiting, so the table cannot be filled from the outside.
+- Sessions carry the account's session version; changing the password bumps it, which invalidates every other device's cookie at once. The compose demo `SESSION_SECRET` is refused as soon as `APP_URL` leaves localhost, and the demo profiles' logins can be switched off (`ALLOW_DEMO_LOGIN=0`). `FIRST_ADMIN_EMAIL` keeps the first admin seat for one address.
+- Every response carries a Content Security Policy (`default-src 'self'`, no third-party origins, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`), `Strict-Transport-Security`, `X-Frame-Options`, `nosniff`, a referrer policy, a permissions policy and `Cross-Origin-Opener-Policy`. The policy allows inline scripts and styles: a nonce-based one would force every page to render per request and lose the cached public pages, and the app embeds no third-party code, which is what nonces protect against.
 - Click records keep the referrer host only. No IP addresses or user agents are stored.
 - "Grab from the link" makes the server fetch a URL the owner typed. Only `http(s)`; hostnames must resolve to public addresses, checked inside the socket's DNS lookup so a rebinding between check and connect cannot slip through; IP literals and every redirect hop are checked the same way; pages are capped at 1 MB and images at 8 MB with an 8 s deadline; the downloaded bytes are re-encoded by `sharp` like any upload, never served as received. Tests set `LINK_PREVIEW_ALLOW_PRIVATE=1` to reach local servers; production never does.
 - Social icon URLs are built by the app from a validated handle, address or URL (`http(s)` and `mailto:` only), so a profile cannot link to a `javascript:` scheme.
@@ -121,6 +136,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck
 ## Known limits
 
 - The rate limiter and the page cache live in process memory, which fits a single container. Several replicas would need Redis for the limiter and a shared cache handler.
+- Whether a username or email is taken is visible on the sign-up form; the alternative (sending an email) needs mail delivery the app does not have.
 - An unknown username renders the not-found page with a `noindex` tag, but with a `200` status: the static shell is streamed before the lookup runs, which is how Next.js Cache Components work today.
 - Images are streamed through the app rather than served from the bucket or a CDN; fine for a demo, the next step at scale is signed URLs or a CDN in front of `/img/`.
 - The compose stack's SeaweedFS enforces no credentials; it is reachable only from the other containers. Real deployments configure identities (`-s3.config`) or use a managed S3.

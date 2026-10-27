@@ -2,8 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { DENIED_MESSAGE, PENDING_MESSAGE } from "@/lib/auth-messages";
-import { authenticate, createUser, UniqueViolation } from "@/lib/data/users";
-import { authLimiter } from "@/lib/rate-limit";
+import { authenticate, createUser, RequestsFull, UniqueViolation } from "@/lib/data/users";
+import { demoLoginAllowed } from "@/lib/config";
+import { accountLimiter, authLimiter } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { createSession, destroySession } from "@/lib/session";
 import { fieldErrors, loginSchema, signupSchema } from "@/lib/validation";
@@ -38,13 +39,17 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
     return { values, errors: fieldErrors(parsed.error) };
   }
   try {
-    const user = await createUser({ ...parsed.data, displayName: parsed.data.username });
+    const user = await createUser(
+      { ...parsed.data, displayName: parsed.data.username },
+      { firstAdminEmail: process.env.FIRST_ADMIN_EMAIL || undefined },
+    );
     if (user.status !== "approved") return { requested: { username: user.username } };
     await createSession(user.id);
   } catch (error) {
     if (error instanceof UniqueViolation) {
       return { values, errors: { [error.field]: `That ${error.field} is already taken` } };
     }
+    if (error instanceof RequestsFull) return { values, errors: { form: error.message } };
     throw error;
   }
   redirect("/dashboard");
@@ -53,23 +58,33 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
 export async function login(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const values = formValues(formData, ["email"]);
   // Only wrong guesses count: the limit is against brute force, not against a household sharing one address.
-  const limitKey = `login:${await clientIp()}`;
-  const limit = authLimiter.peek(limitKey);
-  if (!limit.ok) {
-    return { values, errors: { form: `Too many attempts. Try again in ${limit.retryAfterSeconds} seconds.` } };
+  const ipKey = `login:${await clientIp()}`;
+  const ipLimit = authLimiter.peek(ipKey);
+  if (!ipLimit.ok) {
+    return { values, errors: { form: `Too many attempts. Try again in ${ipLimit.retryAfterSeconds} seconds.` } };
   }
   const parsed = loginSchema.safeParse({ ...values, password: formData.get("password") });
   if (!parsed.success) {
     return { values, errors: fieldErrors(parsed.error) };
   }
+  // The second budget is per account, so spreading guesses over many addresses does not help.
+  const accountKey = `login:${parsed.data.email}`;
+  const accountLimit = accountLimiter.peek(accountKey);
+  if (!accountLimit.ok) {
+    return { values, errors: { form: `Too many attempts. Try again in ${accountLimit.retryAfterSeconds} seconds.` } };
+  }
   const user = await authenticate(parsed.data.email, parsed.data.password);
   if (!user) {
-    authLimiter.check(limitKey);
+    authLimiter.check(ipKey);
+    accountLimiter.check(accountKey);
     return { values, errors: { form: "Wrong email or password" } };
   }
   if (user.status === "pending") return { values, toast: { tone: "info", message: PENDING_MESSAGE, at: Date.now() } };
   if (user.status === "denied") return { values, toast: { tone: "danger", message: DENIED_MESSAGE, at: Date.now() } };
-  await createSession(user.id);
+  if (user.isDemo && !demoLoginAllowed()) {
+    return { values, errors: { form: "Demo accounts cannot log in on this site" } };
+  }
+  await createSession(user.id, user.sessionVersion);
   redirect(returnPath(formData.get("next")));
 }
 

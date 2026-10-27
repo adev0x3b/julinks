@@ -17,35 +17,60 @@ export { SESSION_COOKIE };
 export const SESSION_EXPIRED_PATH = "/login/expired";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
+/** The value docker-compose falls back to: fine on a laptop, a skeleton key on the internet. */
+const COMPOSE_DEMO_SECRET = "compose-demo-secret-change-me-for-anything-real";
+
 function secretKey(): Uint8Array {
   const secret = process.env.SESSION_SECRET;
   if (!secret || secret.length < 32) {
     throw new Error("SESSION_SECRET must be set and at least 32 characters long");
   }
+  if (secret === COMPOSE_DEMO_SECRET && !isLocalAppUrl()) {
+    throw new Error("SESSION_SECRET is the compose demo default: set a real one in .env before serving JuLinks beyond localhost");
+  }
   return new TextEncoder().encode(secret);
 }
 
-/** Signs a session token for a user id. Exported for tests; the app uses createSession. */
-export async function signSessionToken(userId: string, ttlSeconds = SESSION_TTL_SECONDS): Promise<string> {
-  return new SignJWT({ sub: userId })
+/** True when APP_URL points at this machine, where the known compose secret cannot be abused from outside. */
+function isLocalAppUrl(): boolean {
+  try {
+    const host = new URL(process.env.APP_URL ?? "http://localhost:3000").hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host.endsWith(".localhost");
+  } catch {
+    return false;
+  }
+}
+
+export type SessionClaims = { userId: string; version: number };
+
+/**
+ * Signs a session token: the user id and the account's session version. Bumping the
+ * version (a password change) makes every older token invalid. Tokens issued before
+ * the version existed carry none and count as version 0, so nobody is logged out by
+ * the upgrade. Exported for tests; the app uses createSession.
+ */
+export async function signSessionToken(userId: string, ttlSeconds = SESSION_TTL_SECONDS, version = 0): Promise<string> {
+  return new SignJWT({ sub: userId, v: version })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(Math.floor(Date.now() / 1000) + ttlSeconds)
     .sign(secretKey());
 }
 
-/** Returns the user id inside a valid, unexpired token, or null. */
-export async function verifySessionToken(token: string): Promise<string | null> {
+/** Returns the claims inside a valid, unexpired token, or null. */
+export async function verifySessionToken(token: string): Promise<SessionClaims | null> {
+  const key = secretKey(); // a misconfigured secret is an error, not an invalid token
   try {
-    const { payload } = await jwtVerify(token, secretKey(), { algorithms: ["HS256"] });
-    return typeof payload.sub === "string" ? payload.sub : null;
+    const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
+    if (typeof payload.sub !== "string") return null;
+    return { userId: payload.sub, version: typeof payload.v === "number" ? payload.v : 0 };
   } catch {
     return null;
   }
 }
 
-export async function createSession(userId: string): Promise<void> {
-  const token = await signSessionToken(userId);
+export async function createSession(userId: string, version = 0): Promise<void> {
+  const token = await signSessionToken(userId, SESSION_TTL_SECONDS, version);
   (await cookies()).set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -79,11 +104,12 @@ export type CurrentUser = {
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  const userId = await verifySessionToken(token);
-  if (!userId) return null;
-  // Only approved accounts have a session; one denied after logging in is treated like a stale cookie.
+  const claims = await verifySessionToken(token);
+  if (!claims) return null;
+  // Only approved accounts have a session; one denied after logging in, or one whose password
+  // changed since the token was issued, is treated like a stale cookie.
   const user = await prisma.user.findFirst({
-    where: { id: userId, status: "approved" },
+    where: { id: claims.userId, status: "approved", sessionVersion: claims.version },
     select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, avatarFocusX: true, avatarFocusY: true, themeId: true, role: true },
   });
   return user;

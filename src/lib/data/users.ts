@@ -16,6 +16,8 @@ export type NewUserOptions = {
   role?: Role;
   /** Seeded demo profiles: never the first account, never listed as requests. */
   isDemo?: boolean;
+  /** When set, only a sign-up with this email can become the first admin; any other first account waits as a request. */
+  firstAdminEmail?: string;
 };
 
 export class UniqueViolation extends Error {
@@ -23,6 +25,15 @@ export class UniqueViolation extends Error {
     super(`${field} is already taken`);
   }
 }
+
+/** The queue of pending requests is full: a public sign-up form must not let anyone fill the table. */
+export class RequestsFull extends Error {
+  constructor() {
+    super("Sign-ups are paused until the current requests are reviewed");
+  }
+}
+
+export const MAX_PENDING_REQUESTS = 100;
 
 /**
  * Stores a sign-up. Invite only: the account starts as a pending request unless the
@@ -44,9 +55,12 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
     try {
       return await prisma.$transaction(
         async (tx) => {
-          const first = !options.isDemo && (await tx.user.count({ where: { isDemo: false } })) === 0;
+          const first = !options.isDemo && (await claimsFirstSeat(tx, input.email, options.firstAdminEmail));
           const status = options.status ?? (first ? "approved" : "pending");
           const role = options.role ?? (first ? "admin" : "client");
+          if (status === "pending" && (await tx.user.count({ where: { status: "pending" } })) >= MAX_PENDING_REQUESTS) {
+            throw new RequestsFull();
+          }
           return tx.user.create({
             data: {
               username: input.username,
@@ -74,6 +88,21 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   }
 }
 
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+/**
+ * Whether this sign-up takes the first admin seat. Without FIRST_ADMIN_EMAIL it is the first
+ * real account, full stop. With it, only that email does, and the seat stays open while
+ * other sign-ups queue up as requests, until no real admin is missing any more.
+ */
+async function claimsFirstSeat(tx: Tx, email: string, firstAdminEmail: string | undefined): Promise<boolean> {
+  if (firstAdminEmail) {
+    if (firstAdminEmail.trim().toLowerCase() !== email) return false;
+    return (await tx.user.count({ where: { isDemo: false, role: "admin" } })) === 0;
+  }
+  return (await tx.user.count({ where: { isDemo: false } })) === 0;
+}
+
 function isUniqueError(error: unknown): error is { code: string; meta?: { target?: unknown } } {
   return prismaCode(error) === "P2002";
 }
@@ -97,7 +126,29 @@ export async function authenticate(email: string, password: string) {
   const hash = user?.passwordHash ?? DUMMY_HASH;
   const ok = await verifyPassword(password, hash);
   if (!user || !ok) return null;
-  return { id: user.id, username: user.username, status: user.status as AccountStatus };
+  return { id: user.id, username: user.username, status: user.status as AccountStatus, isDemo: user.isDemo, sessionVersion: user.sessionVersion };
+}
+
+export class WrongPassword extends Error {
+  constructor() {
+    super("Current password is wrong");
+  }
+}
+
+/**
+ * Replaces the password after checking the current one, and bumps the session version so
+ * every other device is logged out. Returns the new version for the caller's own cookie.
+ */
+export async function changePassword(userId: string, currentPassword: string, newPassword: string): Promise<number> {
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
+  if (!(await verifyPassword(currentPassword, user.passwordHash))) throw new WrongPassword();
+  const passwordHash = await hashPassword(newPassword);
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash, sessionVersion: { increment: 1 } },
+    select: { sessionVersion: true },
+  });
+  return updated.sessionVersion;
 }
 
 // bcrypt hash of a random string, cost 12. Only used to burn the same time as a real comparison.

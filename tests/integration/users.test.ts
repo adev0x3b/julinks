@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
-import { authenticate, createUser, getPublicProfile, setAvatar, setAvatarFocus, UniqueViolation, updateProfile } from "@/lib/data/users";
+import {
+  authenticate,
+  changePassword,
+  createUser,
+  getPublicProfile,
+  MAX_PENDING_REQUESTS,
+  RequestsFull,
+  setAvatar,
+  setAvatarFocus,
+  UniqueViolation,
+  updateProfile,
+  WrongPassword,
+} from "@/lib/data/users";
 import { createLink, updateLink } from "@/lib/data/links";
 import { DEFAULT_PRESET } from "@/lib/themes";
 import { makeUser } from "./helpers";
@@ -26,6 +38,30 @@ describe("createUser", () => {
     expect(rows[1].reviewedAt).toBeNull();
   });
 
+  it("reserves the first admin seat for FIRST_ADMIN_EMAIL when one is named", async () => {
+    const other = await createUser({ username: "other", email: "other@example.com", password: "12345678", displayName: "Other" }, { firstAdminEmail: "Owner@example.com" });
+    expect(other).toMatchObject({ status: "pending", role: "client" });
+    const owner = await createUser({ username: "owner", email: "owner@example.com", password: "12345678", displayName: "Owner" }, { firstAdminEmail: "Owner@example.com" });
+    expect(owner).toMatchObject({ status: "approved", role: "admin" });
+  });
+
+  it("stops taking requests once the queue is full", async () => {
+    await makeUser({ username: "admin" }, { role: "admin" });
+    // Rows written directly: hashing a hundred passwords is not what this test is about.
+    await prisma.user.createMany({
+      data: Array.from({ length: MAX_PENDING_REQUESTS }, (_, i) => ({
+        username: `pending${i}`,
+        email: `pending${i}@example.com`,
+        passwordHash: "x",
+        displayName: `Pending ${i}`,
+        status: "pending" as const,
+      })),
+    });
+    await expect(createUser({ username: "late", email: "late@example.com", password: "12345678", displayName: "Late" })).rejects.toBeInstanceOf(RequestsFull);
+    // Approved accounts (tests, seeds) are not requests and still go through.
+    await expect(makeUser({ username: "seeded" })).resolves.toMatchObject({ status: "approved" });
+  });
+
   it("rejects a duplicate username or email with the offending field", async () => {
     await makeUser({ username: "ada", email: "ada@example.com" });
     await expect(makeUser({ username: "ada" })).rejects.toMatchObject(new UniqueViolation("username"));
@@ -36,7 +72,13 @@ describe("createUser", () => {
 describe("authenticate", () => {
   it("returns the user for the right password and null otherwise", async () => {
     const user = await makeUser({ email: "ada@example.com" });
-    expect(await authenticate("ada@example.com", "correct horse battery staple")).toEqual({ id: user.id, username: user.username, status: "approved" });
+    expect(await authenticate("ada@example.com", "correct horse battery staple")).toEqual({
+      id: user.id,
+      username: user.username,
+      status: "approved",
+      isDemo: false,
+      sessionVersion: 0,
+    });
     expect(await authenticate("ada@example.com", "wrong")).toBeNull();
     expect(await authenticate("nobody@example.com", "correct horse battery staple")).toBeNull();
   });
@@ -47,6 +89,16 @@ describe("authenticate", () => {
     expect((await authenticate("waiting@example.com", "correct horse battery staple"))?.status).toBe("pending");
     expect((await authenticate("refused@example.com", "correct horse battery staple"))?.status).toBe("denied");
     expect(await authenticate("refused@example.com", "wrong")).toBeNull();
+  });
+});
+
+describe("changePassword", () => {
+  it("needs the current password, stores the new one and bumps the session version", async () => {
+    const user = await makeUser({ email: "ada@example.com" });
+    await expect(changePassword(user.id, "not it", "a brand new password")).rejects.toBeInstanceOf(WrongPassword);
+    expect(await changePassword(user.id, "correct horse battery staple", "a brand new password")).toBe(1);
+    expect(await authenticate("ada@example.com", "correct horse battery staple")).toBeNull();
+    expect(await authenticate("ada@example.com", "a brand new password")).toMatchObject({ id: user.id, sessionVersion: 1 });
   });
 });
 

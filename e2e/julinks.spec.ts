@@ -522,6 +522,38 @@ test("auth guards and 404s", async ({ page }) => {
   expect(click.status()).toBe(404);
 });
 
+test("changing the password logs every other device out", async ({ page, browser }) => {
+  await login(page);
+  // A second browser, logged in as the same account, stands in for the other device.
+  const other = await browser.newContext();
+  const otherPage = await other.newPage();
+  await loginAs(otherPage, user);
+
+  await page.goto("/dashboard/account");
+  await expect(page.getByText(user.email)).toBeVisible();
+  const form = page.getByRole("main");
+  await form.getByLabel("Current password").fill("wrong one");
+  await form.getByLabel("New password", { exact: true }).fill("an even longer passphrase");
+  await form.getByLabel("Repeat new password").fill("an even longer passphrase");
+  await form.getByRole("button", { name: "Change password" }).click();
+  await expect(form.getByRole("alert")).toHaveText("Current password is wrong");
+
+  await form.getByLabel("Current password").fill(user.password);
+  await form.getByLabel("New password", { exact: true }).fill("an even longer passphrase");
+  await form.getByLabel("Repeat new password").fill("an even longer passphrase");
+  await form.getByRole("button", { name: "Change password" }).click();
+  await expect(page.getByTestId("password-notice")).toHaveText("Password changed. Other devices have been logged out.");
+  user.password = "an even longer passphrase";
+
+  // This device keeps its session, the other one is sent to log in again.
+  await page.goto("/dashboard/stats");
+  await expect(page).toHaveURL(/\/dashboard\/stats$/);
+  await otherPage.goto("/dashboard");
+  await expect(otherPage).toHaveURL(/\/login\?expired=1$/);
+  await other.close();
+  await logout(page);
+});
+
 test("a session cookie for a user that no longer exists is cleared instead of looping", async ({ page, context }) => {
   // The token is validly signed, as after a database reset that kept SESSION_SECRET.
   const token = await new SignJWT({ sub: "no-such-user" })
