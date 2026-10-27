@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { imageFocusSchema, linkImageSchema } from "@/lib/validation";
-import { fieldErrors, linkSchema, linkUrlSchema, signupSchema, themeSchema, themeTokensSchema, usernameSchema } from "@/lib/validation";
+import { decisionSchema, fieldErrors, linkSchema, linkUrlSchema, signupSchema, themeSchema, themeTokensSchema, usernameSchema } from "@/lib/validation";
 
 describe("usernameSchema", () => {
   it.each(["ada", "ada_lovelace", "ada-99", "A1b"])("accepts %s", (value) => {
@@ -54,12 +54,25 @@ describe("linkSchema and fieldErrors", () => {
 
 describe("signupSchema", () => {
   it("normalises email and username", () => {
-    const parsed = signupSchema.parse({ username: "Ada", email: " ADA@Example.com ", password: "12345678", displayName: " Ada " });
-    expect(parsed).toMatchObject({ username: "ada", email: "ada@example.com", displayName: "Ada" });
+    const parsed = signupSchema.parse({ username: "Ada", email: " ADA@Example.com ", password: "12345678" });
+    expect(parsed).toEqual({ username: "ada", email: "ada@example.com", password: "12345678" });
   });
 
   it("rejects short passwords", () => {
-    expect(signupSchema.safeParse({ username: "ada", email: "a@b.co", password: "short", displayName: "Ada" }).success).toBe(false);
+    expect(signupSchema.safeParse({ username: "ada", email: "a@b.co", password: "short" }).success).toBe(false);
+  });
+});
+
+describe("decisionSchema", () => {
+  it("accepts an approval with a known role and a plain denial", () => {
+    expect(decisionSchema.parse({ status: "approved", role: "moderator" })).toEqual({ status: "approved", role: "moderator" });
+    expect(decisionSchema.parse({ status: "denied" })).toEqual({ status: "denied" });
+  });
+
+  it("rejects unknown roles, approvals without a role and other statuses", () => {
+    expect(decisionSchema.safeParse({ status: "approved", role: "owner" }).success).toBe(false);
+    expect(decisionSchema.safeParse({ status: "approved" }).success).toBe(false);
+    expect(decisionSchema.safeParse({ status: "pending" }).success).toBe(false);
   });
 });
 

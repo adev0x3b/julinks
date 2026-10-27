@@ -2,7 +2,9 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { logout } from "@/actions/auth";
 import { Logo } from "@/components/Logo";
-import { requireUser } from "@/lib/session";
+import { countPendingRequests } from "@/lib/data/requests";
+import { canReview } from "@/lib/roles";
+import { getCurrentUser, requireUser } from "@/lib/session";
 
 // The layout itself stays static; only the header's user-specific part reads the session.
 export default function DashboardLayout({ children }: LayoutProps<"/dashboard">) {
@@ -22,6 +24,9 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
               <Link href="/dashboard/stats" className="btn-ghost">
                 Stats
               </Link>
+              <Suspense>
+                <ReviewerNav />
+              </Suspense>
             </nav>
           </div>
           <Suspense fallback={<div className="h-9 w-40 animate-pulse rounded-lg bg-stone-100" />}>
@@ -31,6 +36,23 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
     </div>
+  );
+}
+
+/** The Requests link, with the number waiting, only for admins and moderators. */
+async function ReviewerNav() {
+  const user = await getCurrentUser();
+  if (!user || !canReview(user.role)) return null;
+  const waiting = await countPendingRequests();
+  return (
+    <Link href="/dashboard/requests" className="btn-ghost flex items-center gap-1.5" data-testid="requests-nav">
+      Requests
+      {waiting > 0 && (
+        <span className="rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white" data-testid="requests-count">
+          {waiting}
+        </span>
+      )}
+    </Link>
   );
 }
 

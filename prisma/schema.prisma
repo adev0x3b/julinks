@@ -22,6 +22,11 @@ model User {
   avatarFocusY Int      @default(50)
   /// The theme shown on the public page; null falls back to the default preset.
   themeId      String?
+  /// Sign-ups are requests: an admin or moderator approves or denies them before the account can log in.
+  status       AccountStatus @default(pending)
+  /// What the account may do once approved. The first account ever created is the admin.
+  role         Role     @default(client)
+  reviewedAt   DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   links        Link[]
@@ -56,6 +61,18 @@ model Link {
 enum ImageLayout {
   thumbnail
   featured
+}
+
+enum AccountStatus {
+  pending
+  approved
+  denied
+}
+
+enum Role {
+  client
+  moderator
+  admin
 }
 
 model Click {

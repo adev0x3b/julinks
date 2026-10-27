@@ -6,7 +6,7 @@ export default function NotFound() {
       <h1 className="text-3xl font-semibold">Nothing here</h1>
       <p className="text-stone-600">That page does not exist, or the username has not been claimed yet.</p>
       <Link href="/signup" className="btn-primary">
-        Claim it
+        Request it
       </Link>
     </main>
   );

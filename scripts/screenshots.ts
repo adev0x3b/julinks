@@ -51,6 +51,38 @@ async function main() {
   await page.goto(`${base}/themes`);
   await page.getByTestId("gallery-card").first().waitFor();
   await shot(page, `${out}/gallery.png`);
+
+  // Sign-up requests: ada is the admin. The requests come from a second, logged-out context.
+  const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 })).newPage();
+  const stamp = Date.now().toString(36);
+  const requests = [
+    { username: `marie${stamp}`, email: `marie-${stamp}@example.com` },
+    { username: `alan${stamp}`, email: `alan-${stamp}@example.com` },
+    { username: `nope${stamp}`, email: `nope-${stamp}@example.com` },
+  ];
+  for (const who of requests) {
+    await visitor.goto(`${base}/signup`);
+    await visitor.getByLabel("Username").fill(who.username);
+    await visitor.getByLabel("Email").fill(who.email);
+    await visitor.getByLabel("Password").fill("correct horse battery staple");
+    await visitor.getByRole("button", { name: "Request my page" }).click();
+    await visitor.getByTestId("request-sent").waitFor();
+  }
+  await shot(visitor, `${out}/signup-requested.png`);
+
+  await page.goto(`${base}/dashboard/requests`);
+  await page.getByTestId("pending-requests").waitFor();
+  await page.getByRole("button", { name: `Deny ${requests[2].username}` }).click();
+  await page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: requests[2].username }).waitFor();
+  await shot(page, `${out}/requests.png`);
+
+  await visitor.goto(`${base}/login`);
+  await visitor.getByLabel("Email").fill(requests[2].email);
+  await visitor.getByLabel("Password").fill("correct horse battery staple");
+  await visitor.getByRole("button", { name: "Log in" }).click();
+  await visitor.getByTestId("toast").waitFor();
+  await shot(visitor, `${out}/login-denied.png`);
+  await visitor.context().close();
   await desktop.close();
 
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true });

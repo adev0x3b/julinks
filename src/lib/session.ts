@@ -1,9 +1,10 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
 import { cache } from "react";
 import { prisma } from "@/lib/db";
+import { canReview, type Role } from "@/lib/roles";
 import { SESSION_COOKIE } from "@/lib/session-cookie";
 
 export { SESSION_COOKIE };
@@ -68,6 +69,7 @@ export type CurrentUser = {
   avatarFocusX: number;
   avatarFocusY: number;
   themeId: string | null;
+  role: Role;
 };
 
 /**
@@ -79,9 +81,10 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   if (!token) return null;
   const userId = await verifySessionToken(token);
   if (!userId) return null;
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, avatarFocusX: true, avatarFocusY: true, themeId: true },
+  // Only approved accounts have a session; one denied after logging in is treated like a stale cookie.
+  const user = await prisma.user.findFirst({
+    where: { id: userId, status: "approved" },
+    select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, avatarFocusX: true, avatarFocusY: true, themeId: true, role: true },
   });
   return user;
 });
@@ -90,5 +93,12 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 export async function requireUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect(SESSION_EXPIRED_PATH);
+  return user;
+}
+
+/** The current user when they may review sign-up requests; anyone else gets a 404 so the page stays invisible. */
+export async function requireReviewer(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!canReview(user.role)) notFound();
   return user;
 }
