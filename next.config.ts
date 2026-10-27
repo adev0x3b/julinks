@@ -41,6 +41,8 @@ const nextConfig: NextConfig = {
   // nested inside another project, or a self-hosted runner's work folder).
   outputFileTracingRoot: process.cwd(),
   cacheComponents: true,
+  // `next dev` would otherwise write a managed block into AGENTS.md; the repo keeps no such file.
+  agentRules: false,
   // The app serves its own re-encoded WebPs from /img and never uses next/image, so the
   // Image Optimization endpoint (/_next/image, a decoder for anything it is pointed at) is off.
   images: { unoptimized: true },
