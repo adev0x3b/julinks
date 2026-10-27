@@ -125,6 +125,14 @@ More in [docs/security.md](docs/security.md).
 - No password reset or email of any kind: requesters find out at login whether they were approved.
 - Images are streamed through the app, not from a CDN.
 
+## Contributing
+
+1. Fork the repository and create a branch named after the change (`feature/scheduled-links`, `fix/folder-drag`).
+2. Keep `npm run lint`, `npm run typecheck` and `npm test` green, and add a test where the change needs one. The integration and e2e suites run in CI on every pull request.
+3. Open a pull request against `main` and say what it does and why. I review every PR myself, and nothing merges without my approval.
+
+Bug reports and ideas are welcome as issues.
+
 ## About
 
 I'm Andrea Cracchiolo. JuLinks is my project; I built it with [Claude Code](https://claude.com/claude-code) as a pair programmer and reviewed every change. MIT licensed, see [LICENSE](LICENSE).
