@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { createThemeFromPreset, publishTheme, removeTheme, saveTheme, setActiveTheme } from "@/actions/themes";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { PublicProfile, type PublicLink } from "@/components/PublicProfile";
+import { PublicProfile, type PublicFolder, type PublicLink } from "@/components/PublicProfile";
+import type { SocialIcon } from "@/lib/socials";
 import type { ImageFocus } from "@/lib/validation";
 import { DEFAULT_PRESET, PRESETS, pageBackground, type ThemeTokens } from "@/lib/themes";
 import { ThemeBuilder } from "./ThemeBuilder";
@@ -20,7 +21,15 @@ export type StudioTheme = {
   forkedFromId: string | null;
 };
 
-export type StudioUser = { username: string; displayName: string; bio: string; avatarUrl: string | null; avatarFocus: ImageFocus };
+export type StudioUser = {
+  username: string;
+  displayName: string;
+  bio: string;
+  avatarUrl: string | null;
+  avatarFocus: ImageFocus;
+  socials: SocialIcon[];
+  folders: PublicFolder[];
+};
 
 /**
  * The appearance page: your saved themes, the presets to start from, and a
@@ -216,6 +225,8 @@ export function ThemeStudio({
                 avatarUrl: user.avatarUrl,
                 avatarFocus: user.avatarFocus,
                 theme: previewTheme,
+                socials: user.socials,
+                folders: user.folders,
                 links,
               }}
             />

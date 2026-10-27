@@ -14,6 +14,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { imageKey, processImage } from "../src/lib/images";
 import { putObject } from "../src/lib/storage";
 import type { ThemeTokens } from "../src/lib/themes";
+import { SOCIAL_PLATFORMS, type SocialPlatformId } from "../src/lib/socials";
 import type { ImageKind } from "../src/lib/validation";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
@@ -24,13 +25,17 @@ export const DEMO_USER = {
   email: "ada@example.com",
   password: "analytical-engine",
   displayName: "Ada Lovelace",
-  bio: "Analyst, metaphysician, and founder of scientific computing.",
+  // Two lines: the emoji row sits under the text instead of wrapping into it on a phone.
+  bio: "Analyst, metaphysician, and founder of scientific computing.\n✨ 🧮 📜",
 };
 
 type DemoUser = typeof DEMO_USER & {
   avatar: { from: string; to: string };
   theme: { name: string; tokens: ThemeTokens; background: string | null };
-  links: { title: string; url: string; shape: Shape; colour: string; featured?: boolean; focus?: { x: number; y: number } }[];
+  socials: { platform: SocialPlatformId; value: string }[];
+  /** Folders by title; a link names the folder it sits in. */
+  folders: { title: string; collapsed: boolean }[];
+  links: { title: string; url: string; shape: Shape; colour: string; featured?: boolean; focus?: { x: number; y: number }; folder?: string }[];
   clicks: boolean;
 };
 
@@ -54,6 +59,15 @@ const DEMO_USERS: DemoUser[] = [
       },
       background: blobs(["#c084fc", "#f472b6", "#818cf8"], "#3b0764"),
     },
+    socials: [
+      { platform: "mastodon", value: "@ada@mathstodon.xyz" },
+      { platform: "github", value: "adalovelace" },
+      { platform: "email", value: "ada@example.com" },
+    ],
+    folders: [
+      { title: "Correspondence", collapsed: false },
+      { title: "Further reading", collapsed: true },
+    ],
     links: [
       {
         title: "Notes on the Analytical Engine",
@@ -64,7 +78,10 @@ const DEMO_USERS: DemoUser[] = [
         focus: { x: 30, y: 50 },
       },
       { title: "Poetical science", url: "https://en.wikipedia.org/wiki/Ada_Lovelace", shape: "diamond", colour: "#db2777" },
-      { title: "Letters to Babbage", url: "https://en.wikipedia.org/wiki/Charles_Babbage", shape: "bars", colour: "#4f46e5" },
+      { title: "Letters to Babbage", url: "https://en.wikipedia.org/wiki/Charles_Babbage", shape: "bars", colour: "#4f46e5", folder: "Correspondence" },
+      { title: "To Faraday, on electricity", url: "https://en.wikipedia.org/wiki/Michael_Faraday", shape: "ring", colour: "#9333ea", folder: "Correspondence" },
+      { title: "The Difference Engine", url: "https://en.wikipedia.org/wiki/Difference_engine", shape: "diamond", colour: "#c026d3", folder: "Further reading" },
+      { title: "Bernoulli numbers", url: "https://en.wikipedia.org/wiki/Bernoulli_number", shape: "bars", colour: "#7c3aed", folder: "Further reading" },
     ],
     clicks: true,
   },
@@ -91,6 +108,11 @@ const DEMO_USERS: DemoUser[] = [
       },
       background: null,
     },
+    socials: [
+      { platform: "linkedin", value: "https://www.linkedin.com/in/gracehopper" },
+      { platform: "youtube", value: "@gracehopper" },
+    ],
+    folders: [],
     links: [
       { title: "A nanosecond, in wire", url: "https://en.wikipedia.org/wiki/Grace_Hopper", shape: "ring", colour: "#0284c7" },
       { title: "COBOL", url: "https://en.wikipedia.org/wiki/COBOL", shape: "bars", colour: "#0f766e" },
@@ -118,6 +140,24 @@ async function main() {
     });
     await prisma.user.update({ where: { id: user.id }, data: { themeId: theme.id } });
 
+    await prisma.socialLink.deleteMany({ where: { userId: user.id } });
+    await prisma.socialLink.createMany({
+      data: demo.socials.map((social, position) => ({
+        userId: user.id,
+        platform: social.platform,
+        value: social.value,
+        url: SOCIAL_PLATFORMS[social.platform].toUrl(social.value)!,
+        position,
+      })),
+    });
+
+    await prisma.folder.deleteMany({ where: { userId: user.id } });
+    const folderIds = new Map<string, string>();
+    for (const [position, folder] of demo.folders.entries()) {
+      const created = await prisma.folder.create({ data: { userId: user.id, title: folder.title, collapsed: folder.collapsed, position } });
+      folderIds.set(folder.title, created.id);
+    }
+
     await prisma.link.deleteMany({ where: { userId: user.id } });
     for (const [position, link] of demo.links.entries()) {
       // A featured link gets a wide picture, centred off to one side to show the focal point at work.
@@ -132,6 +172,7 @@ async function main() {
           imageLayout: link.featured ? "featured" : "thumbnail",
           imageFocusX: link.focus?.x ?? 50,
           imageFocusY: link.focus?.y ?? 50,
+          folderId: link.folder ? folderIds.get(link.folder) : null,
         },
       });
     }

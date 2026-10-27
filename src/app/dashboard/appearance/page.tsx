@@ -1,5 +1,7 @@
 import { ThemeStudio } from "@/components/themes/ThemeStudio";
+import { listFolders } from "@/lib/data/folders";
 import { listLinks } from "@/lib/data/links";
+import { listSocials } from "@/lib/data/socials";
 import { listOwnThemes } from "@/lib/data/themes";
 import { imageUrl } from "@/lib/image-url";
 import { requireUser } from "@/lib/session";
@@ -8,7 +10,13 @@ export const metadata = { title: "Appearance" };
 
 export default async function AppearancePage({ searchParams }: PageProps<"/dashboard/appearance">) {
   const user = await requireUser();
-  const [{ theme, error }, themes, links] = await Promise.all([searchParams, listOwnThemes(user.id), listLinks(user.id)]);
+  const [{ theme, error }, themes, links, socials, folders] = await Promise.all([
+    searchParams,
+    listOwnThemes(user.id),
+    listLinks(user.id),
+    listSocials(user.id),
+    listFolders(user.id),
+  ]);
   return (
     <ThemeStudio
       user={{
@@ -17,6 +25,8 @@ export default async function AppearancePage({ searchParams }: PageProps<"/dashb
         bio: user.bio,
         avatarUrl: imageUrl(user.avatarKey),
         avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
+        socials: socials.map((s) => ({ platform: s.platform, url: s.url })),
+        folders: folders.map((f) => ({ id: f.id, title: f.title, collapsed: f.collapsed })),
       }}
       links={links
         .filter((l) => l.enabled)
@@ -27,6 +37,7 @@ export default async function AppearancePage({ searchParams }: PageProps<"/dashb
           thumbnailUrl: imageUrl(l.thumbnailKey),
           imageLayout: l.imageLayout,
           imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
+          folderId: l.folderId,
         }))}
       themes={themes.map((t) => ({
         id: t.id,

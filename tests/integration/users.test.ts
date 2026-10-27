@@ -70,9 +70,11 @@ describe("getPublicProfile", () => {
       avatarUrl: "/img/avatars/u/000000000000000000000000.webp",
       avatarFocus: { x: 10, y: 90 },
       theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
+      socials: [],
+      folders: [],
       links: [
-        { id: first.id, title: "First", url: "https://a.example", thumbnailUrl: null, ...centred },
-        { id: second.id, title: "Second", url: "https://b.example", thumbnailUrl: null, ...centred },
+        { id: first.id, title: "First", url: "https://a.example", thumbnailUrl: null, folderId: null, ...centred },
+        { id: second.id, title: "Second", url: "https://b.example", thumbnailUrl: null, folderId: null, ...centred },
       ],
     });
     expect(await getPublicProfile("nobody")).toBeNull();

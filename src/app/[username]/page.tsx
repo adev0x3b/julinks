@@ -29,7 +29,12 @@ export async function generateMetadata({ params }: PageProps<"/[username]">): Pr
   const { username } = await params;
   const profile = await loadProfile(username.toLowerCase());
   if (!profile) return { title: "Not found" };
-  return { title: `${profile.displayName} (@${profile.username})`, description: profile.bio || undefined };
+  return {
+    title: `${profile.displayName} (@${profile.username})`,
+    description: profile.bio || undefined,
+    // The avatar as the link preview, so a JuLinks page pasted elsewhere (or into another JuLinks page) shows a picture.
+    openGraph: profile.avatarUrl ? { images: [profile.avatarUrl] } : undefined,
+  };
 }
 
 export default function PublicPage({ params }: PageProps<"/[username]">) {

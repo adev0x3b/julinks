@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { CENTRE, PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
 import { DEFAULT_PRESET } from "@/lib/themes";
@@ -11,11 +12,16 @@ const demo: PublicProfileData = {
   avatarUrl: null,
   avatarFocus: CENTRE,
   theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
+  socials: [
+    { platform: "github", url: "#" },
+    { platform: "email", url: "#" },
+  ],
+  folders: [],
   links: [
     { id: "1", title: "Notes on the Analytical Engine", url: "https://example.com/notes" },
     { id: "2", title: "Poetical science", url: "https://example.com/poetry" },
     { id: "3", title: "Letters to Babbage", url: "https://example.com/letters" },
-  ].map((l) => ({ ...l, thumbnailUrl: null, imageLayout: "thumbnail" as const, imageFocus: CENTRE })),
+  ].map((l) => ({ ...l, thumbnailUrl: null, imageLayout: "thumbnail" as const, imageFocus: CENTRE, folderId: null })),
 };
 
 export default function Home() {
@@ -24,6 +30,7 @@ export default function Home() {
       <header className="flex items-center justify-between">
         <Logo />
         <nav className="flex items-center gap-2">
+          <ThemeToggle />
           <Link href="/themes" className="btn-ghost">
             Themes
           </Link>

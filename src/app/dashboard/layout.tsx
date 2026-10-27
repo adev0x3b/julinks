@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { logout } from "@/actions/auth";
 import { Logo } from "@/components/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { countPendingRequests } from "@/lib/data/requests";
 import { canReview } from "@/lib/roles";
 import { getCurrentUser, requireUser } from "@/lib/session";
@@ -29,9 +30,12 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
               </Suspense>
             </nav>
           </div>
-          <Suspense fallback={<div className="h-9 w-40 animate-pulse rounded-lg bg-stone-100" />}>
-            <UserMenu />
-          </Suspense>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Suspense fallback={<div className="h-9 w-40 animate-pulse rounded-lg bg-stone-100" />}>
+              <UserMenu />
+            </Suspense>
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-8">{children}</main>
@@ -48,7 +52,7 @@ async function ReviewerNav() {
     <Link href="/dashboard/requests" className="btn-ghost flex items-center gap-1.5" data-testid="requests-nav">
       Requests
       {waiting > 0 && (
-        <span className="rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white" data-testid="requests-count">
+        <span className="rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white text-on-brand" data-testid="requests-count">
           {waiting}
         </span>
       )}

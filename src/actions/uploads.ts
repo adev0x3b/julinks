@@ -3,6 +3,9 @@
 import { updateTag } from "next/cache";
 import { GALLERY_TAG, profileTag } from "@/lib/cache-tags";
 import { NotFound, setLinkThumbnail } from "@/lib/data/links";
+import { prisma } from "@/lib/db";
+import { PreviewError } from "@/lib/link-preview";
+import { grabLinkPreviewFor } from "@/lib/link-preview-store";
 import { getOwnTheme, setThemeBackground, ThemeNotFound } from "@/lib/data/themes";
 import { setAvatar } from "@/lib/data/users";
 import { imageKey, processImage, UnsupportedImage } from "@/lib/images";
@@ -74,6 +77,25 @@ export async function uploadLinkThumbnail(linkId: string, formData: FormData): P
   }
   updateTag(profileTag(user.username));
   return { ok: true, url: `/img/${stored.key}` };
+}
+
+/** The link's own preview image (og:image and friends) as its picture. */
+export async function grabLinkPreview(linkId: string): Promise<UploadResult> {
+  const user = await requireUser();
+  const limit = uploadLimiter.check(user.id);
+  if (!limit.ok) return { ok: false, error: `Too many uploads. Try again in ${limit.retryAfterSeconds} seconds.` };
+  const link = await prisma.link.findFirst({ where: { id: linkId, userId: user.id }, select: { url: true } });
+  if (!link) return { ok: false, error: "Link not found" };
+  try {
+    const stored = await grabLinkPreviewFor(user.id, linkId, link.url);
+    updateTag(profileTag(user.username));
+    return { ok: true, url: stored.url };
+  } catch (error) {
+    if (error instanceof PreviewError) return { ok: false, error: error.message };
+    if (error instanceof NotFound) return { ok: false, error: "Link not found" };
+    console.error("link preview failed", error);
+    return { ok: false, error: "Could not fetch a preview for that link" };
+  }
 }
 
 export async function removeLinkThumbnail(linkId: string): Promise<ActionResult> {

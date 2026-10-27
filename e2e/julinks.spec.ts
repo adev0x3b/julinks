@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { SignJWT } from "jose";
+import pg from "pg";
 import sharp from "sharp";
-import { E2E_SESSION_SECRET } from "../playwright.config";
+import { E2E_DATABASE_URL, E2E_SESSION_SECRET } from "../playwright.config";
 
 const run = Date.now().toString(36);
 const user = {
@@ -37,6 +38,8 @@ async function submitLogin(page: Page, who: { email: string; password: string })
 async function loginAs(page: Page, who: { email: string; password: string }) {
   await submitLogin(page, who);
   await expect(page).toHaveURL(/\/dashboard$/);
+  // The login page's markup lingers until the dashboard has streamed in; wait for its header.
+  await expect(page.getByRole("banner").getByRole("button", { name: "Log out" })).toBeVisible();
 }
 
 async function login(page: Page) {
@@ -64,6 +67,18 @@ async function addLink(page: Page, title: string, url: string) {
 }
 
 test.describe.configure({ mode: "serial" });
+
+// The chain starts from "only the demo profiles exist", so the first sign-up becomes the admin.
+// Done here rather than in a global setup because a retry re-runs the whole serial chain and must start clean too.
+test.beforeAll(async () => {
+  const client = new pg.Client({ connectionString: E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query('delete from users where "isDemo" = false');
+  } finally {
+    await client.end();
+  }
+});
 
 test("landing page shows the seeded demo profile", async ({ page }) => {
   await page.goto("/");
@@ -148,7 +163,7 @@ test("edit links and profile, and see the public page update", async ({ page }) 
   // Public page shows both, in order.
   await page.goto(`/${user.username}`);
   await expect(page.getByRole("heading", { name: user.displayName })).toBeVisible();
-  const links = page.getByRole("list", { name: "Links" }).getByRole("link");
+  const links = page.getByRole("list", { name: "Links", exact: true }).getByRole("link");
   await expect(links).toHaveText(["My blog", "GitHub"]);
 
   // Disable one: the cached public page must be refreshed.
@@ -157,7 +172,7 @@ test("edit links and profile, and see the public page update", async ({ page }) 
   // The switch flips optimistically and stays disabled until the server has saved; navigating earlier would abort the save.
   await expect(page.getByRole("switch", { name: "Enable GitHub" })).toBeEnabled();
   await page.goto(`/${user.username}`);
-  await expect(page.getByRole("list", { name: "Links" }).getByRole("link")).toHaveText(["My blog"]);
+  await expect(page.getByRole("list", { name: "Links", exact: true }).getByRole("link")).toHaveText(["My blog"]);
 
   // Edit title and URL inline.
   await page.goto("/dashboard");
@@ -205,10 +220,10 @@ test("pictures: avatar and link pictures are stored, served, laid out and centre
   await expect(page.getByTestId("avatar-adjust").getByRole("status")).toHaveText("Saved");
   await page.getByRole("button", { name: "Done" }).click();
 
-  // Link picture: the square uploads it; the picture then opens its settings.
+  // Link picture: the square opens the panel; uploading there turns the panel into the picture's settings.
+  await page.getByRole("button", { name: "Add picture for My new blog" }).click();
   await page.getByLabel("Picture file for My new blog").setInputFiles(await pngFile("thumb.png", 640, 400, "#00aa55"));
-  await expect(page.getByTestId("link-thumbnail")).toBeVisible();
-  await page.getByRole("button", { name: "Picture settings for My new blog" }).click();
+  await expect(page.getByTestId("link-row").filter({ hasText: "My new blog" }).getByTestId("link-thumbnail")).toBeVisible();
   const panel = page.getByTestId("picture-panel");
   await panel.getByText("Big, above the title").click();
   await expect(panel.getByLabel(/^Big, above the title/)).toBeChecked();
@@ -238,6 +253,115 @@ test("pictures: avatar and link pictures are stored, served, laid out and centre
   // Unknown or malformed keys are 404s, never errors.
   expect((await page.request.get("/img/avatars/x/000000000000000000000000.webp")).status()).toBe(404);
   expect((await page.request.get("/img/../etc/passwd")).status()).toBe(404);
+});
+
+test("a link's own preview image becomes its picture: on its own after adding, and on demand", async ({ page, baseURL }) => {
+  await login(page);
+  // The seeded /ada page advertises Ada's avatar as og:image, so a link to it gets a picture without any upload.
+  await addLink(page, "Ada's page", `${baseURL}/ada`);
+  const row = page.getByTestId("link-row").filter({ hasText: "Ada's page" });
+  // The automatic grab runs after the add has answered; the editor shows it on the next load.
+  await expect
+    .poll(async () => {
+      await page.reload();
+      return row.getByTestId("link-thumbnail").count();
+    }, { timeout: 15_000 })
+    .toBe(1);
+  const first = await row.getByTestId("link-thumbnail").getAttribute("src");
+  expect(first).toMatch(/^\/img\/thumbnails\//);
+
+  // On demand, from the picture panel.
+  await row.getByRole("button", { name: "Picture settings for Ada's page" }).click();
+  await page.getByRole("button", { name: "Grab picture from the link Ada's page" }).click();
+  await expect(page.getByRole("button", { name: "Grab picture from the link Ada's page" })).toBeEnabled();
+  await expect(page.getByTestId("picture-panel").getByRole("alert")).toHaveCount(0);
+  await expect(row.getByTestId("link-thumbnail")).toHaveAttribute("src", first!);
+
+  // A page with no preview image says so instead of failing silently.
+  await addLink(page, "Nothing here", `${baseURL}/themes`);
+  const bare = page.getByTestId("link-row").filter({ hasText: "Nothing here" });
+  await bare.getByRole("button", { name: "Add picture for Nothing here" }).click();
+  await page.getByRole("button", { name: "Grab picture from the link Nothing here" }).click();
+  await expect(page.getByTestId("picture-panel").getByRole("alert")).toContainText("does not advertise");
+  page.on("dialog", (d) => d.accept());
+  await bare.getByRole("button", { name: "Delete Nothing here" }).click();
+  await expect(page.getByTestId("link-row")).toHaveCount(3);
+  await page.getByRole("button", { name: "Delete Ada's page" }).click();
+  await expect(page.getByTestId("link-row")).toHaveCount(2);
+});
+
+test("bio lines, social icons and folders show on the public page", async ({ page }) => {
+  await login(page);
+
+  // Bio with a line break: the emoji row stays under the text.
+  await page.getByLabel("Bio").fill("Testing all the things\n✨ 🎨");
+  await page.getByRole("button", { name: "Save profile" }).click();
+  await expect(page.getByText("Saved", { exact: true })).toBeVisible();
+
+  // Social icons: a handle and an email, saved as a row.
+  await page.getByRole("button", { name: "Add icon" }).click();
+  await page.getByLabel("Instagram handle or URL").fill("@e2e");
+  await page.getByRole("button", { name: "Add icon" }).click();
+  await page.getByLabel("Email handle or URL").fill("not-an-address");
+  await page.getByRole("button", { name: "Save icons" }).click();
+  await expect(page.getByTestId("socials-editor").getByRole("alert")).toContainText("Email address");
+  await page.getByLabel("Email handle or URL").fill("e2e@example.com");
+  await page.getByRole("button", { name: "Save icons" }).click();
+  await expect(page.getByText("Icons saved")).toBeVisible();
+
+  // Folders: create one, put a link in it.
+  await page.getByLabel("Folder name").fill("Articles");
+  await page.getByRole("button", { name: "Add folder" }).click();
+  await expect(page.getByTestId("folder-row")).toHaveCount(1);
+  await page.getByLabel("Folder for My new blog").selectOption({ label: "Articles" });
+  // The preview groups it straight away.
+  await expect(page.locator("[data-theme] [data-folder]")).toHaveAttribute("data-collapsed", "false");
+
+  await page.goto(`/${user.username}`);
+  const bio = page.getByText(/Testing all the things/);
+  await expect(bio).toHaveCSS("white-space", "pre-line");
+  expect(await bio.textContent()).toBe("Testing all the things\n✨ 🎨");
+  const icons = page.getByRole("list", { name: "Social links" }).getByRole("link");
+  await expect(icons).toHaveCount(2);
+  await expect(icons.nth(0)).toHaveAttribute("href", "https://instagram.com/e2e");
+  await expect(icons.nth(1)).toHaveAttribute("href", "mailto:e2e@example.com");
+  await expect(page.getByRole("heading", { level: 2, name: "Articles" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Articles" }).getByRole("link", { name: "My new blog" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Links", exact: true }).getByRole("link", { name: "My new blog" })).toHaveCount(0);
+
+  // Collapsed: the folder becomes a row that opens on tap.
+  await page.goto("/dashboard");
+  await page.getByLabel("Collapse Articles on the page").check();
+  await expect(page.getByTestId("folder-row")).toHaveAttribute("data-collapsed", "true");
+  await page.goto(`/${user.username}`);
+  const folder = page.locator("details[data-folder]");
+  await expect(folder).toBeVisible();
+  await expect(folder.getByRole("link", { name: "My new blog" })).toBeHidden();
+  await folder.locator("summary").click();
+  await expect(folder.getByRole("link", { name: "My new blog" })).toBeVisible();
+
+  // Deleting the folder sends the link back to the main list.
+  await page.goto("/dashboard");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Delete folder Articles" }).click();
+  await expect(page.getByTestId("folder-row")).toHaveCount(0);
+  await page.goto(`/${user.username}`);
+  await expect(page.getByRole("list", { name: "Links", exact: true }).getByRole("link", { name: "My new blog" })).toBeVisible();
+});
+
+test("dark mode is a toggle that sticks", async ({ page }) => {
+  await login(page);
+  const html = page.locator("html");
+  await expect(html).not.toHaveClass(/dark/);
+  await page.getByRole("banner").getByTestId("theme-toggle").click();
+  await expect(html).toHaveClass(/dark/);
+  await page.reload();
+  await expect(html).toHaveClass(/dark/);
+  await page.goto("/login/expired");
+  await page.goto("/login");
+  await expect(html).toHaveClass(/dark/);
+  await page.getByTestId("theme-toggle").click();
+  await expect(html).not.toHaveClass(/dark/);
 });
 
 test("themes: start from a preset, customise, publish, and copy from the gallery", async ({ page }) => {
@@ -363,7 +487,7 @@ test("dragging a link changes the public order", async ({ page }) => {
   await expect(page.getByTestId("order-status")).toHaveText("Order saved");
 
   await page.goto(`/${user.username}`);
-  await expect(page.getByRole("list", { name: "Links" }).getByRole("link")).toHaveText(["GitHub", "My new blog"]);
+  await expect(page.getByRole("list", { name: "Links", exact: true }).getByRole("link")).toHaveText(["GitHub", "My new blog"]);
 });
 
 test("auth guards and 404s", async ({ page }) => {

@@ -52,7 +52,9 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
 
 export async function login(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const values = formValues(formData, ["email"]);
-  const limit = authLimiter.check(`login:${await clientIp()}`);
+  // Only wrong guesses count: the limit is against brute force, not against a household sharing one address.
+  const limitKey = `login:${await clientIp()}`;
+  const limit = authLimiter.peek(limitKey);
   if (!limit.ok) {
     return { values, errors: { form: `Too many attempts. Try again in ${limit.retryAfterSeconds} seconds.` } };
   }
@@ -62,6 +64,7 @@ export async function login(_prev: AuthFormState, formData: FormData): Promise<A
   }
   const user = await authenticate(parsed.data.email, parsed.data.password);
   if (!user) {
+    authLimiter.check(limitKey);
     return { values, errors: { form: "Wrong email or password" } };
   }
   if (user.status === "pending") return { values, toast: { tone: "info", message: PENDING_MESSAGE, at: Date.now() } };

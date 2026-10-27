@@ -40,6 +40,13 @@ async function main() {
   await page.getByTestId("picture-panel").evaluate((el) => el.scrollIntoView({ block: "end" }));
   await shot(page, `${out}/editor.png`);
 
+  // The same editor in dark mode, scrolled to the folders and the social icons.
+  // By role: the login page lingers hidden in the DOM after the redirect, with a toggle of its own.
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await page.getByTestId("socials-editor").evaluate((el) => el.scrollIntoView({ block: "start" }));
+  await shot(page, `${out}/editor-dark.png`);
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+
   await page.goto(`${base}/dashboard/stats`);
   await page.getByTestId("clicks-per-link").waitFor();
   await shot(page, `${out}/stats.png`);
