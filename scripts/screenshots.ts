@@ -1,5 +1,5 @@
 /**
- * Takes the README screenshots against a running server seeded with the demo user.
+ * Takes the README screenshots against a running server on a freshly seeded database (demo profiles only).
  *
  *   npm run build && node .next/standalone/server.js   (PORT=3100, DATABASE_URL and S3_* pointing at seeded stores)
  *   npx tsx scripts/screenshots.ts
@@ -52,9 +52,20 @@ async function main() {
   await page.getByTestId("gallery-card").first().waitFor();
   await shot(page, `${out}/gallery.png`);
 
-  // Sign-up requests: ada is the admin. The requests come from a second, logged-out context.
-  const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 })).newPage();
+  // Sign-up requests. The demo profiles do not count, so on a freshly seeded database the first
+  // sign-up here becomes the admin; the requests come from a second, logged-out context.
+  await page.goto(`${base}/dashboard`);
+  await page.getByRole("button", { name: "Log out" }).click();
+  await page.waitForURL(/\/$/);
   const stamp = Date.now().toString(36);
+  await page.goto(`${base}/signup`);
+  await page.getByLabel("Username").fill(`andrea${stamp}`);
+  await page.getByLabel("Email").fill(`andrea-${stamp}@example.com`);
+  await page.getByLabel("Password").fill("correct horse battery staple");
+  await page.getByRole("button", { name: "Request my page" }).click();
+  await page.waitForURL(/\/dashboard$/);
+
+  const visitor = await (await browser.newContext({ viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1 })).newPage();
   const requests = [
     { username: `marie${stamp}`, email: `marie-${stamp}@example.com` },
     { username: `alan${stamp}`, email: `alan-${stamp}@example.com` },

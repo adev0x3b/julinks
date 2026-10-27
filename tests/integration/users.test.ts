@@ -13,12 +13,15 @@ describe("createUser", () => {
     expect(row.passwordHash).not.toContain("correct horse");
   });
 
-  it("makes the first account the approved admin and every later sign-up a pending client", async () => {
+  it("makes the first real account the approved admin and every later sign-up a pending client", async () => {
+    // Seeded demo profiles do not count.
+    const demo = await createUser({ username: "ada", email: "ada@example.com", password: "12345678", displayName: "Ada" }, { status: "approved", isDemo: true });
+    expect(demo.role).toBe("client");
     const first = await createUser({ username: "first", email: "first@example.com", password: "12345678", displayName: "First" });
     expect(first).toMatchObject({ status: "approved", role: "admin" });
     const second = await createUser({ username: "second", email: "second@example.com", password: "12345678", displayName: "Second" });
     expect(second).toMatchObject({ status: "pending", role: "client" });
-    const rows = await prisma.user.findMany({ orderBy: { createdAt: "asc" }, select: { reviewedAt: true } });
+    const rows = await prisma.user.findMany({ where: { isDemo: false }, orderBy: { createdAt: "asc" }, select: { reviewedAt: true } });
     expect(rows[0].reviewedAt).toBeInstanceOf(Date);
     expect(rows[1].reviewedAt).toBeNull();
   });

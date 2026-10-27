@@ -8,11 +8,12 @@ async function setup() {
   const admin = await makeUser({ username: "admin" }, { role: "admin" });
   const moderator = await makeUser({ username: "mod" }, { role: "moderator" });
   const request = await makeUser({ username: "newcomer", email: "new@example.com" }, { status: "pending" });
+  await makeUser({ username: "ada", email: "ada@example.com" }, { isDemo: true });
   return { admin: { id: admin.id, role: "admin" as const }, moderator: { id: moderator.id, role: "moderator" as const }, request };
 }
 
 describe("listRequests", () => {
-  it("separates pending requests (oldest first) from decided accounts", async () => {
+  it("separates pending requests (oldest first) from decided accounts, leaving demo profiles out", async () => {
     const { request } = await setup();
     const later = await makeUser({ username: "later" }, { status: "pending" });
     const { pending, decided } = await listRequests();
@@ -62,5 +63,7 @@ describe("reviewRequest", () => {
     await expect(reviewRequest({ id: request.id, role: "client" }, admin.id, { status: "denied" })).rejects.toBeInstanceOf(ReviewForbidden);
     await expect(reviewRequest(admin, admin.id, { status: "denied" })).rejects.toBeInstanceOf(ReviewForbidden);
     await expect(reviewRequest(admin, "no-such-user", { status: "denied" })).rejects.toBeInstanceOf(RequestNotFound);
+    const demo = await prisma.user.findUniqueOrThrow({ where: { username: "ada" }, select: { id: true } });
+    await expect(reviewRequest(admin, demo.id, { status: "denied" })).rejects.toBeInstanceOf(RequestNotFound);
   });
 });
