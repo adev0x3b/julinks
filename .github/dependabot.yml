@@ -1,0 +1,22 @@
+# Keeps the lockfile on patched releases: Next.js, React and sharp ship security fixes as
+# patch versions, and the Docker image installs exactly what the lockfile says.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # One PR for the framework trio so a security release lands in one go.
+      next:
+        patterns: ["next", "react", "react-dom", "sharp", "eslint-config-next", "@next/*"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

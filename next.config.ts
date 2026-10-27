@@ -41,6 +41,9 @@ const nextConfig: NextConfig = {
   // and Next would otherwise look for a lockfile further up.
   outputFileTracingRoot: process.cwd(),
   cacheComponents: true,
+  // The app serves its own re-encoded WebPs from /img and never uses next/image, so the
+  // Image Optimization endpoint (/_next/image, a decoder for anything it is pointed at) is off.
+  images: { unoptimized: true },
   partialPrefetching: true,
   poweredByHeader: false,
   experimental: {
