@@ -5,7 +5,7 @@ export const metadata = { title: "Sign up" };
 
 export default function SignupPage() {
   return (
-    <AuthShell title="Claim your page">
+    <AuthShell title="Request your page">
       <SignupForm />
     </AuthShell>
   );

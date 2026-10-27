@@ -13,6 +13,16 @@ describe("createUser", () => {
     expect(row.passwordHash).not.toContain("correct horse");
   });
 
+  it("makes the first account the approved admin and every later sign-up a pending client", async () => {
+    const first = await createUser({ username: "first", email: "first@example.com", password: "12345678", displayName: "First" });
+    expect(first).toMatchObject({ status: "approved", role: "admin" });
+    const second = await createUser({ username: "second", email: "second@example.com", password: "12345678", displayName: "Second" });
+    expect(second).toMatchObject({ status: "pending", role: "client" });
+    const rows = await prisma.user.findMany({ orderBy: { createdAt: "asc" }, select: { reviewedAt: true } });
+    expect(rows[0].reviewedAt).toBeInstanceOf(Date);
+    expect(rows[1].reviewedAt).toBeNull();
+  });
+
   it("rejects a duplicate username or email with the offending field", async () => {
     await makeUser({ username: "ada", email: "ada@example.com" });
     await expect(makeUser({ username: "ada" })).rejects.toMatchObject(new UniqueViolation("username"));
@@ -23,9 +33,17 @@ describe("createUser", () => {
 describe("authenticate", () => {
   it("returns the user for the right password and null otherwise", async () => {
     const user = await makeUser({ email: "ada@example.com" });
-    expect(await authenticate("ada@example.com", "correct horse battery staple")).toEqual({ id: user.id, username: user.username });
+    expect(await authenticate("ada@example.com", "correct horse battery staple")).toEqual({ id: user.id, username: user.username, status: "approved" });
     expect(await authenticate("ada@example.com", "wrong")).toBeNull();
     expect(await authenticate("nobody@example.com", "correct horse battery staple")).toBeNull();
+  });
+
+  it("reports a pending or denied status only with the right password", async () => {
+    await makeUser({ email: "waiting@example.com" }, { status: "pending" });
+    await makeUser({ email: "refused@example.com" }, { status: "denied" });
+    expect((await authenticate("waiting@example.com", "correct horse battery staple"))?.status).toBe("pending");
+    expect((await authenticate("refused@example.com", "correct horse battery staple"))?.status).toBe("denied");
+    expect(await authenticate("refused@example.com", "wrong")).toBeNull();
   });
 });
 
@@ -55,6 +73,9 @@ describe("getPublicProfile", () => {
       ],
     });
     expect(await getPublicProfile("nobody")).toBeNull();
+    // Requests and denied accounts have no public page.
+    await makeUser({ username: "waiting" }, { status: "pending" });
+    expect(await getPublicProfile("waiting")).toBeNull();
 
     // A new avatar starts centred again.
     await setAvatar(user.id, "avatars/u/111111111111111111111111.webp");

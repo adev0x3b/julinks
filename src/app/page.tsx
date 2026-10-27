@@ -31,7 +31,7 @@ export default function Home() {
             Log in
           </Link>
           <Link href="/signup" className="btn-primary">
-            Get your page
+            Request a page
           </Link>
         </nav>
       </header>
@@ -42,12 +42,12 @@ export default function Home() {
             One link for everything you do.
           </h1>
           <p className="mt-4 max-w-md text-lg text-stone-600">
-            Claim a username, add your links, pick a theme. Share one page everywhere and see which links people
-            actually click.
+            Ask for a username, add your links, pick a theme. Share one page everywhere and see which links people
+            actually click. Invite only: an admin approves each request.
           </p>
           <div className="mt-8 flex gap-3">
             <Link href="/signup" className="btn-primary">
-              Create your page
+              Request your page
             </Link>
             <Link href="/ada" className="btn-secondary">
               See an example

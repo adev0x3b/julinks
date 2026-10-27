@@ -8,25 +8,43 @@ const user = {
   username: `e2e${run}`,
   email: `e2e-${run}@example.com`,
   password: "correct horse battery staple",
-  displayName: "E2E Tester",
+  // A new account's display name starts as its username.
+  displayName: `e2e${run}`,
 };
+const refused = { username: `nope${run}`, email: `nope-${run}@example.com`, password: "correct horse battery staple" };
+const admin = { email: "ada@example.com", password: "analytical-engine" };
 
-async function signup(page: Page) {
+type Credentials = { username: string; email: string; password: string };
+
+/** Asks for a page; invite only, so this ends on the "waiting for approval" confirmation, not the dashboard. */
+async function requestPage(page: Page, who: Credentials) {
   await page.goto("/signup");
-  await page.getByLabel("Username").fill(user.username);
-  await page.getByLabel("Display name").fill(user.displayName);
-  await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Create my page" }).click();
+  await page.getByLabel("Username").fill(who.username);
+  await page.getByLabel("Email").fill(who.email);
+  await page.getByLabel("Password").fill(who.password);
+  await page.getByRole("button", { name: "Request my page" }).click();
+  await expect(page.getByTestId("request-sent")).toContainText(`/${who.username}`);
+}
+
+async function submitLogin(page: Page, who: { email: string; password: string }) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(who.email);
+  await page.getByLabel("Password").fill(who.password);
+  await page.getByRole("button", { name: "Log in" }).click();
+}
+
+async function loginAs(page: Page, who: { email: string; password: string }) {
+  await submitLogin(page, who);
   await expect(page).toHaveURL(/\/dashboard$/);
 }
 
 async function login(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(user.email);
-  await page.getByLabel("Password").fill(user.password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await loginAs(page, user);
+}
+
+async function logout(page: Page) {
+  await page.getByRole("button", { name: "Log out" }).click();
+  await expect(page).toHaveURL(/\/$/);
 }
 
 /** A solid-colour PNG made on the fly, so the repo carries no binary fixtures. */
@@ -55,8 +73,48 @@ test("landing page shows the seeded demo profile", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Poetical science" })).toHaveAttribute("href", /^\/l\//);
 });
 
-test("signup, edit links and profile, and see the public page update", async ({ page }) => {
-  await signup(page);
+test("invite only: requests wait for approval, denied ones are told so at login", async ({ page }) => {
+  await requestPage(page, user);
+  await requestPage(page, refused);
+
+  // A pending request cannot log in yet; the toast says so.
+  await submitLogin(page, user);
+  await expect(page.getByTestId("toast")).toContainText("waiting for approval");
+  await expect(page).toHaveURL(/\/login$/);
+  // Nor does it have a public page.
+  await page.goto(`/${user.username}`);
+  await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
+
+  // The admin sees both requests, approves one as a client and denies the other.
+  await loginAs(page, admin);
+  await expect(page.getByTestId("requests-count")).toHaveText("2");
+  await page.getByTestId("requests-nav").click();
+  await expect(page).toHaveURL(/\/dashboard\/requests$/);
+  const pendingRows = page.getByTestId("pending-requests").getByTestId("request-row");
+  await expect(pendingRows).toHaveCount(2);
+  await page.getByLabel(`Role for ${user.username}`).selectOption("client");
+  await page.getByRole("button", { name: `Approve ${user.username}` }).click();
+  await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${user.username}` })).toHaveAttribute("data-status", "approved");
+  await page.getByRole("button", { name: `Deny ${refused.username}` }).click();
+  await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${refused.username}` })).toHaveAttribute("data-status", "denied");
+  await expect(page.getByTestId("no-pending")).toBeVisible();
+  await expect(page.getByTestId("requests-count")).toHaveCount(0);
+  await logout(page);
+
+  // Denied: a toast at login, no session.
+  await submitLogin(page, refused);
+  await expect(page.getByTestId("toast")).toContainText("has been denied");
+  await expect(page).toHaveURL(/\/login$/);
+
+  // Approved: logs in normally, and clients never see the Requests page.
+  await login(page);
+  await expect(page.getByTestId("requests-nav")).toHaveCount(0);
+  await page.goto("/dashboard/requests");
+  await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
+});
+
+test("edit links and profile, and see the public page update", async ({ page }) => {
+  await login(page);
 
   // Empty state, then two links.
   await expect(page.getByText("Add your first link above.")).toBeVisible();

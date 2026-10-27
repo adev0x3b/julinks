@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { login, type AuthFormState } from "@/actions/auth";
 import { Field } from "@/components/Field";
+import { Toast } from "@/components/Toast";
 
 const initial: AuthFormState = {};
 
@@ -13,6 +14,8 @@ export function LoginForm() {
   const e = state.errors ?? {};
   return (
     <form action={action} className="flex flex-col gap-4" noValidate>
+      {/* Keyed by the attempt so a second refusal shows the toast again, even with the same text. */}
+      {state.toast && <Toast key={state.toast.at} tone={state.toast.tone} message={state.toast.message} />}
       <Field label="Email" name="email" error={e.email}>
         <input id="email" name="email" type="email" className="input" defaultValue={v.email} autoComplete="email" required />
       </Field>
@@ -30,7 +33,7 @@ export function LoginForm() {
       <p className="text-center text-sm text-stone-500">
         New here?{" "}
         <Link href="/signup" className="font-medium text-brand-600 hover:underline">
-          Create a page
+          Request a page
         </Link>
       </p>
     </form>

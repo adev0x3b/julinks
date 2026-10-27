@@ -3,9 +3,17 @@ import { hashPassword, verifyPassword } from "@/lib/password";
 import type { PublicProfileData } from "@/components/PublicProfile";
 import { imageUrl } from "@/lib/image-url";
 import { DEFAULT_PRESET, type ThemeTokens } from "@/lib/themes";
+import type { Role } from "@/lib/roles";
 import type { ImageFocus } from "@/lib/validation";
 
 export type NewUser = { username: string; email: string; password: string; displayName: string };
+export type AccountStatus = "pending" | "approved" | "denied";
+export type { Role };
+export type NewUserOptions = {
+  /** Defaults to a pending sign-up request; seeds pass "approved". */
+  status?: AccountStatus;
+  role?: Role;
+};
 
 export class UniqueViolation extends Error {
   constructor(public readonly field: "username" | "email") {
@@ -13,7 +21,12 @@ export class UniqueViolation extends Error {
   }
 }
 
-export async function createUser(input: NewUser) {
+/**
+ * Stores a sign-up. Invite only: the account starts as a pending request unless the
+ * options say otherwise, with one exception: the very first account on a fresh
+ * install is approved on the spot and made admin, so there is someone to review the rest.
+ */
+export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   const existing = await prisma.user.findFirst({
     where: { OR: [{ username: input.username }, { email: input.email }] },
     select: { username: true, email: true },
@@ -22,37 +35,64 @@ export async function createUser(input: NewUser) {
     throw new UniqueViolation(existing.username === input.username ? "username" : "email");
   }
   const passwordHash = await hashPassword(input.password);
-  try {
-    return await prisma.user.create({
-      data: {
-        username: input.username,
-        email: input.email,
-        passwordHash,
-        displayName: input.displayName,
-      },
-      select: { id: true, username: true, email: true, displayName: true },
-    });
-  } catch (error) {
-    // Two signups racing for the same name: the unique index wins, map it back to a field error.
-    if (isUniqueError(error)) {
-      throw new UniqueViolation(String(error.meta?.target).includes("email") ? "email" : "username");
+  // Serializable so two "first" sign-ups cannot both see an empty table; the loser retries and lands as pending.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => {
+          const first = (await tx.user.count()) === 0;
+          const status = options.status ?? (first ? "approved" : "pending");
+          const role = options.role ?? (first ? "admin" : "client");
+          return tx.user.create({
+            data: {
+              username: input.username,
+              email: input.email,
+              passwordHash,
+              displayName: input.displayName,
+              status,
+              role,
+              reviewedAt: status === "pending" ? null : new Date(),
+            },
+            select: { id: true, username: true, email: true, displayName: true, status: true, role: true },
+          });
+        },
+        { isolationLevel: "Serializable" },
+      );
+    } catch (error) {
+      // Two signups racing for the same name: the unique index wins, map it back to a field error.
+      if (isUniqueError(error)) {
+        throw new UniqueViolation(String(error.meta?.target).includes("email") ? "email" : "username");
+      }
+      if (isSerializationError(error) && attempt < 3) continue;
+      throw error;
     }
-    throw error;
   }
 }
 
 function isUniqueError(error: unknown): error is { code: string; meta?: { target?: unknown } } {
-  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002";
+  return prismaCode(error) === "P2002";
 }
 
-/** Returns the user when email and password match, otherwise null. Constant work on both paths. */
+function isSerializationError(error: unknown): boolean {
+  return prismaCode(error) === "P2034";
+}
+
+function prismaCode(error: unknown): string | undefined {
+  return typeof error === "object" && error !== null ? (error as { code?: string }).code : undefined;
+}
+
+/**
+ * Returns the user when email and password match, otherwise null. Constant work on both paths.
+ * The status comes back with the user: only a correct password reveals whether a request is
+ * still pending or was denied, so the login form cannot be used to probe for emails.
+ */
 export async function authenticate(email: string, password: string) {
   const user = await prisma.user.findUnique({ where: { email } });
   // Compare against a dummy hash when the email is unknown so timing does not reveal registered emails.
   const hash = user?.passwordHash ?? DUMMY_HASH;
   const ok = await verifyPassword(password, hash);
   if (!user || !ok) return null;
-  return { id: user.id, username: user.username };
+  return { id: user.id, username: user.username, status: user.status as AccountStatus };
 }
 
 // bcrypt hash of a random string, cost 12. Only used to burn the same time as a real comparison.
@@ -82,10 +122,10 @@ export async function setAvatarFocus(userId: string, focus: ImageFocus) {
   await prisma.user.update({ where: { id: userId }, data: { avatarFocusX: focus.x, avatarFocusY: focus.y } });
 }
 
-/** Everything the public page needs, or null when the username is unknown. */
+/** Everything the public page needs, or null when the username is unknown or the account is not approved. */
 export async function getPublicProfile(username: string): Promise<PublicProfileData | null> {
-  const user = await prisma.user.findUnique({
-    where: { username },
+  const user = await prisma.user.findFirst({
+    where: { username, status: "approved" },
     select: {
       username: true,
       displayName: true,

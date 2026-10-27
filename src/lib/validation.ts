@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ROLES } from "@/lib/roles";
 import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII } from "@/lib/themes";
 
 /** Path segments that would collide with app routes if used as usernames. */
@@ -23,12 +24,18 @@ export const passwordSchema = z
   .min(8, "Password must be at least 8 characters")
   .max(128, "Password must be at most 128 characters");
 
+/** A sign-up request: username, email and password. The display name starts as the username and is edited in the dashboard. */
 export const signupSchema = z.object({
   username: usernameSchema,
   email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
   password: passwordSchema,
-  displayName: z.string().trim().min(1, "Display name is required").max(60),
 });
+
+/** A reviewer's decision on a sign-up request. */
+export const decisionSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("approved"), role: z.enum(ROLES) }),
+  z.object({ status: z.literal("denied") }),
+]);
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),

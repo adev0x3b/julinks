@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/adev0x3b/julinks/actions/workflows/ci.yml/badge.svg)](https://github.com/adev0x3b/julinks/actions/workflows/ci.yml)
 
-A link-in-bio service in the style of Linktree: claim a username, add links with pictures, drag them into order, design your own theme (or pick one from the gallery), and share one page. Every click is counted and shown on a stats page.
+A link-in-bio service in the style of Linktree: claim a username, add links with pictures, drag them into order, design your own theme (or pick one from the gallery), and share one page. Every click is counted and shown on a stats page. Invite only: a sign-up is a request that an admin or moderator approves with a role, or denies.
 
 Built with **Next.js 16** (App Router, Cache Components, Server Actions), **React 19**, **TypeScript**, **Prisma 7**, **PostgreSQL 16** and **SeaweedFS** (S3 API) for images, shipped as a **docker compose** stack with a self-hosted GitHub Actions pipeline.
 
@@ -18,9 +18,13 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 | --- | --- |
 | ![Stats](docs/screenshots/stats.png) | ![Landing](docs/screenshots/landing.png) |
 
+| Sign-up requests (admin) | Denied at login |
+| --- | --- |
+| ![Requests](docs/screenshots/requests.png) | ![Denied toast](docs/screenshots/login-denied.png) |
+
 ## What it does
 
-- **Accounts**: sign up with a username, email and password; log in; log out. Sessions are signed JWTs in an `httpOnly`, `SameSite=Lax` cookie, valid for seven days.
+- **Invite-only accounts**: asking for a page (username, email, password) stores a *request*; nobody can log in until it is approved. The first account on a fresh install is approved on the spot and becomes the admin. Admins and moderators get a **Requests** page in the dashboard with the number waiting in the nav: approve with a role (`client`, `moderator` or `admin`) or deny. A pending or denied requester sees a toast at login saying so, but only with the right password, so the login form cannot be used to find out who has asked. Decisions can be revisited: a denied request approved later, an approved account revoked (its session and public page go away at once) or given another role. Moderators only make clients and cannot touch moderators or admins; nobody reviews themselves. Sessions are signed JWTs in an `httpOnly`, `SameSite=Lax` cookie, valid for seven days.
 - **Link editor** at `/dashboard`: add, edit, enable/disable and delete links, drag-and-drop or keyboard reordering, with a phone-sized live preview that updates as you type.
 - **Pictures**: an avatar, a picture per link and a background image per theme. A link's picture shows either small beside the title or big above it, like a card, and both it and the avatar can be centred on any point: click the picture (or drag) and the page crops around that point with `object-fit`, so nothing is thrown away at upload time. Uploads are decoded, resized, stripped of metadata and re-encoded as WebP with `sharp`, then stored in an S3 bucket (SeaweedFS in the compose stack) under a content-addressed key and served through `/img/…` with an immutable cache header.
 - **Themes** at `/dashboard/appearance`: start from one of five presets, then change every colour, gradient, button style, corner radius and font, add a background image with an adjustable darkening overlay, and save it as a named theme. Several themes per account; the active one is what visitors see.
@@ -35,6 +39,7 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 | --- | --- |
 | [`src/app/[username]/page.tsx`](src/app/[username]/page.tsx) | The public page. `"use cache"` + `cacheTag` make it a cache hit per username; the server actions call `updateTag` so an edit is visible on the next request. |
 | [`src/actions/links.ts`](src/actions/links.ts), [`src/actions/auth.ts`](src/actions/auth.ts) | Server Actions: the only write path. Each one re-reads the session, validates with zod, and only then touches the data layer. |
+| [`src/lib/roles.ts`](src/lib/roles.ts), [`src/lib/data/requests.ts`](src/lib/data/requests.ts) | Who may approve whom, as pure functions the UI and the data layer share; `reviewRequest` checks them again inside the transaction, so the buttons the page hides cannot be reached with a hand-made request either. |
 | [`src/lib/data/links.ts`](src/lib/data/links.ts) | Data access. Every mutation is scoped by `userId`, so a link id belonging to someone else is a not-found, never a leak. Reordering rejects any order that does not list the user's links exactly once. |
 | [`src/lib/data/clicks.ts`](src/lib/data/clicks.ts) | Stats aggregation: two raw SQL queries for daily buckets and referrers, the rest through Prisma. |
 | [`src/lib/themes.ts`](src/lib/themes.ts) | A theme is ten tokens (hex colours, enum keys, one bounded number). `themeStyle()` turns them into CSS custom properties; the page only ever reads those, so no user string reaches a `style` attribute unvalidated. |
@@ -47,7 +52,7 @@ Built with **Next.js 16** (App Router, Cache Components, Server Actions), **Reac
 | [`src/proxy.ts`](src/proxy.ts) | Optimistic redirects (no cookie → `/login`) before any rendering. Not the guard: pages and actions verify the session themselves. |
 | [`prisma/schema.prisma`](prisma/schema.prisma) | Four tables: `users`, `links` (ordered by `position`), `clicks`, `themes` (tokens as JSON). Image columns hold storage keys, never bytes. |
 | [`scripts/fake-s3.ts`](scripts/fake-s3.ts) | The slice of the S3 API the app uses, in memory, so the integration and e2e suites run without Docker. CI and the compose stack use SeaweedFS. |
-| [`e2e/julinks.spec.ts`](e2e/julinks.spec.ts) | The user journey end to end: signup, links, uploads served back as WebP, theme building, publishing and copying from the gallery, cache invalidation, reordering. |
+| [`e2e/julinks.spec.ts`](e2e/julinks.spec.ts) | The user journey end to end: sign-up request, approval and denial, links, uploads served back as WebP, theme building, publishing and copying from the gallery, cache invalidation, reordering. |
 
 ## Running it
 
@@ -58,7 +63,8 @@ docker compose up --build
 Then open <http://localhost:3000>. Four services: PostgreSQL, SeaweedFS (S3), a one-shot `migrate` container (migrations, demo profiles, demo images uploaded to the bucket) and `web`, which starts once `migrate` has finished.
 
 - Demo pages: <http://localhost:3000/ada> and <http://localhost:3000/grace>; gallery at <http://localhost:3000/themes>
-- Demo login: `ada@example.com` / `analytical-engine`
+- Demo login: `ada@example.com` / `analytical-engine` (Ada is the admin: her **Requests** page is where sign-ups get approved or denied)
+- Fresh database without the demo seed: the first account you create is approved and made admin automatically.
 - Change the host port with `WEB_PORT=8080 docker compose up`; set `SESSION_SECRET` and `S3_SECRET_ACCESS_KEY` for anything that is not a demo.
 - Pointing the app at AWS S3, Cloudflare R2 or another S3-compatible service is a matter of the `S3_*` variables (see `.env.example`).
 
@@ -79,9 +85,9 @@ Without Docker, `npx tsx scripts/fake-s3.ts 3101` runs an in-memory S3 stand-in;
 
 | Command | What runs | Needs |
 | --- | --- | --- |
-| `npm test` | Unit tests (validation incl. theme tokens, image pipeline, rate limiter, session tokens, reorder helper) and component tests in jsdom (public page, chart) | nothing |
-| `npm run test:integration` | The data layer against a real database and object storage: uniqueness, ownership checks, reordering, click aggregation, theme rules, storage round trips | PostgreSQL via `TEST_DATABASE_URL`; an S3 service via `TEST_S3_ENDPOINT`, otherwise the in-memory S3 stand-in starts itself |
-| `npm run test:e2e` | Playwright against a production build: signup, editing, uploads served back as WebP with the small/big layout and focal point, theme studio, gallery, cache invalidation, click redirect and stats, pointer reordering, auth guards | PostgreSQL via `E2E_DATABASE_URL`, `npm run build` first; an S3 service via `E2E_S3_ENDPOINT`, otherwise the stand-in |
+| `npm test` | Unit tests (validation incl. theme tokens and review decisions, roles, image pipeline, rate limiter, session tokens, reorder helper) and component tests in jsdom (public page, chart, toast) | nothing |
+| `npm run test:integration` | The data layer against a real database and object storage: first-account bootstrap, request review rules, uniqueness, ownership checks, reordering, click aggregation, theme rules, storage round trips | PostgreSQL via `TEST_DATABASE_URL`; an S3 service via `TEST_S3_ENDPOINT`, otherwise the in-memory S3 stand-in starts itself |
+| `npm run test:e2e` | Playwright against a production build: sign-up request, approval and denial, editing, uploads served back as WebP with the small/big layout and focal point, theme studio, gallery, cache invalidation, click redirect and stats, pointer reordering, auth guards | PostgreSQL via `E2E_DATABASE_URL`, `npm run build` first; an S3 service via `E2E_S3_ENDPOINT`, otherwise the stand-in |
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck, all three suites (integration and e2e against a SeaweedFS container), and finally a smoke test of the real `docker compose` stack: it waits for `/api/health`, checks that the seeded profile and its avatar are served, that the gallery lists the seeded themes, follows a link and verifies the click landed in the database.
 
@@ -89,7 +95,8 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck
 
 ## Security notes
 
-- Passwords are hashed with bcrypt (cost 12). Login compares against a dummy hash when the email is unknown, so timing does not reveal registered emails.
+- Passwords are hashed with bcrypt (cost 12). Login compares against a dummy hash when the email is unknown, so timing does not reveal registered emails; whether a request is pending or denied is revealed only after the password matched.
+- Review rights are enforced in the data layer inside the same transaction that reads the target's role, not only in the UI; the first-account bootstrap runs serializable so two simultaneous first sign-ups cannot both become admin.
 - Server Actions and route handlers never trust the client for authorisation; the session is verified on every call and every write is scoped to the owner.
 - Link URLs are limited to `http(s)`; `javascript:`, `data:` and friends are rejected server-side.
 - Uploads are capped at 5 MB, must decode as PNG, JPEG, WebP or GIF, and are always re-encoded: what gets stored and served is a WebP the server produced, never the original bytes. Storage keys are generated by the app and the image route serves only keys of that shape.
@@ -105,7 +112,7 @@ CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs lint, typecheck
 - Images are streamed through the app rather than served from the bucket or a CDN; fine for a demo, the next step at scale is signed URLs or a CDN in front of `/img/`.
 - The compose stack's SeaweedFS enforces no credentials; it is reachable only from the other containers. Real deployments configure identities (`-s3.config`) or use a managed S3.
 - The gallery has no moderation beyond the owner's own unpublish and delete.
-- No email verification or password reset.
+- No email verification or password reset, and no email when a request is approved or denied: requesters find out at login.
 
 ## Roadmap
 

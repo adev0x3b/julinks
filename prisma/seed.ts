@@ -14,16 +14,19 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { imageKey, processImage } from "../src/lib/images";
 import { putObject } from "../src/lib/storage";
 import type { ThemeTokens } from "../src/lib/themes";
+import type { Role } from "../src/lib/roles";
 import type { ImageKind } from "../src/lib/validation";
 
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) });
 
+/** Ada is the admin of the demo install: log in as her to review sign-up requests. */
 export const DEMO_USER = {
   username: "ada",
   email: "ada@example.com",
   password: "analytical-engine",
   displayName: "Ada Lovelace",
   bio: "Analyst, metaphysician, and founder of scientific computing.",
+  role: "admin" as Role,
 };
 
 type DemoUser = typeof DEMO_USER & {
@@ -73,6 +76,7 @@ const DEMO_USERS: DemoUser[] = [
     password: "cobol-compiler",
     displayName: "Grace Hopper",
     bio: "Rear admiral, compiler pioneer, finder of the first bug.",
+    role: "client" as Role,
     avatar: { from: "#7dd3fc", to: "#0c4a6e" },
     theme: {
       name: "Navy Compiler",
@@ -103,8 +107,8 @@ async function main() {
     const passwordHash = await bcrypt.hash(demo.password, 12);
     const user = await prisma.user.upsert({
       where: { username: demo.username },
-      update: { displayName: demo.displayName, bio: demo.bio },
-      create: { username: demo.username, email: demo.email, displayName: demo.displayName, bio: demo.bio, passwordHash },
+      update: { displayName: demo.displayName, bio: demo.bio, status: "approved", role: demo.role },
+      create: { username: demo.username, email: demo.email, displayName: demo.displayName, bio: demo.bio, passwordHash, status: "approved", role: demo.role, reviewedAt: new Date() },
     });
     // Keys are derived from the user id, so the avatar is stored once the id is known.
     const avatarKey = await store("avatar", user.id, avatarSvg(demo.avatar));
