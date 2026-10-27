@@ -24,7 +24,7 @@ jobs:
     name: Lint, types, unit and component tests
     runs-on: [self-hosted, linux]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -52,7 +52,7 @@ jobs:
           --health-timeout 3s
           --health-retries 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -99,7 +99,7 @@ jobs:
     env:
       E2E_PORT: "3100"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -151,7 +151,7 @@ jobs:
       COMPOSE_PROJECT_NAME: julinks-ci
       WEB_PORT: "13000"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build and start the stack
         run: docker compose up -d --build --quiet-pull
       - name: Wait for the app to be healthy
