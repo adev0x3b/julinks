@@ -81,7 +81,7 @@ Everything is read from `.env` (see [`.env.example`](.env.example) for the comme
 
 ### Mail
 
-Every mail goes into an outbox table first, and the app sends from it once a minute while the daily and hourly budget allows. What does not fit waits there, through restarts, until it does; admins see the queue, the day's count and anything that failed at the bottom of the Requests page.
+Every mail goes into an outbox table first, and the app sends from it once a minute while the daily and hourly budget allows. What does not fit waits there, through restarts, until it does; admins see the queue, the day's count and anything that failed at the bottom of the Requests page, and can delete a waiting mail before it goes out.
 
 - The admins get one email when a sign-up request arrives. Only one notice waits at a time, half an hour apart, and it lists the requests waiting when it goes out, so a burst of requests costs two messages.
 - A requester gets one when their request is approved or declined, or their account closed. **Spam** on the Requests page declines without a mail, since junk sign-ups tend to use made-up addresses that bounce.

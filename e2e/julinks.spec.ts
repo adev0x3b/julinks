@@ -163,6 +163,22 @@ test("invite only: requests wait for approval, denied ones are told so at login"
   await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${junk.username}` })).toHaveAttribute("data-status", "denied");
   // Only admins see the mail outbox (off unless the run points SMTP_HOST at a catcher).
   await expect(page.getByTestId("mail-outbox")).toContainText(process.env.SMTP_HOST ? "Sent, last 24 hours" : "Mail is off");
+  // A mail still waiting can be deleted before it goes out (put in directly, due tomorrow, so it waits with mail on or off).
+  const db = new pg.Client({ connectionString: E2E_DATABASE_URL });
+  await db.connect();
+  try {
+    await db.query(
+      `insert into mail_outbox (id, kind, recipients, subject, "notBefore") values ('e2e-waiting', 'decision', '{waiting@example.com}', 'Your JuLinks page is ready', now() + interval '1 day')`,
+    );
+  } finally {
+    await db.end();
+  }
+  await page.reload();
+  const waiting = page.getByTestId("mail-waiting").locator("li").filter({ hasText: "waiting@example.com" });
+  await expect(waiting).toHaveCount(1);
+  page.once("dialog", (dialog) => dialog.accept());
+  await waiting.getByRole("button", { name: /^Delete mail/ }).click();
+  await expect(waiting).toHaveCount(0);
   await expect(page.getByTestId("no-pending")).toBeVisible();
   await expect(page.getByTestId("requests-count")).toHaveCount(0);
   await logout(page);

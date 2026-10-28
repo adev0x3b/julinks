@@ -6,6 +6,7 @@ import { reviewRequest } from "@/lib/data/requests";
 import { mailConfig } from "@/lib/mail/config";
 import {
   ADMIN_NOTICE_SPACING_MS,
+  deleteQueuedMail,
   drainOutbox,
   outboxSummary,
   queueAdminNotice,
@@ -218,5 +219,46 @@ describe("decision mails and the budget", () => {
     await prisma.mailOutbox.updateMany({ data: { status: "sending" } });
     expect(await requeueInterrupted()).toBe(1);
     expect(await drainOutbox()).toBe(1);
+  });
+});
+
+describe("deleting waiting mail", () => {
+  it("lists what waits and deletes only a mail that has not started going out", async () => {
+    await queueDecisionMail({ username: "june", email: "june@example.com" }, "pending", "denied");
+    await queueDecisionMail({ username: "kim", email: "kim@example.com" }, "pending", "approved");
+    await makeUser({ username: "boss" }, { role: "admin" });
+    await makeUser({ username: "newbie" }, { status: "pending" });
+    await queueAdminNotice();
+
+    const { waiting } = await outboxSummary();
+    expect(waiting.map((m) => m.recipients[0] ?? m.kind)).toEqual(["june@example.com", "kim@example.com", "admin-requests"]);
+    const [june, kim, notice] = waiting;
+
+    // One already claimed by the sender stays; a sent one stays in the history.
+    await prisma.mailOutbox.update({ where: { id: kim.id }, data: { status: "sending" } });
+    expect(await deleteQueuedMail(kim.id)).toBe(false);
+    expect(await deleteQueuedMail(june.id)).toBe(true);
+    expect(await deleteQueuedMail(june.id)).toBe(false);
+    expect(await deleteQueuedMail(notice.id)).toBe(true);
+
+    await requeueInterrupted();
+    expect(await drainOutbox()).toBe(1);
+    expect(received.map((r) => r.to[0])).toEqual(["kim@example.com"]);
+    const sentId = (await prisma.mailOutbox.findFirstOrThrow({ where: { status: "sent" } })).id;
+    expect(await deleteQueuedMail(sentId)).toBe(false);
+    expect((await outboxSummary()).waiting).toEqual([]);
+  });
+
+  it("brings the admins' notice back with the next request", async () => {
+    await makeUser({ username: "boss" }, { role: "admin" });
+    await makeUser({ username: "newbie" }, { status: "pending" });
+    await queueAdminNotice();
+    const notice = (await outboxSummary()).waiting[0];
+    expect(await deleteQueuedMail(notice.id)).toBe(true);
+
+    await makeUser({ username: "another" }, { status: "pending" });
+    await queueAdminNotice();
+    expect(await drainOutbox()).toBe(1);
+    expect(received[0].raw).toContain("another");
   });
 });

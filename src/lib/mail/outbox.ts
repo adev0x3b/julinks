@@ -211,15 +211,26 @@ export type OutboxSummary = {
   queued: number;
   sentToday: number;
   nextAt: Date | null;
+  /** The next mails due, oldest first; "sending" ones are on their way and cannot be deleted. */
+  waiting: { id: string; kind: string; recipients: string[]; subject: string; status: "queued" | "sending"; notBefore: Date; attempts: number }[];
   failed: { id: string; recipients: string[]; subject: string; lastError: string | null; createdAt: Date }[];
 };
 
+/** How many waiting mails the admins' view lists. */
+const WAITING_SHOWN = 20;
+
 /** For the admins' view of the outbox: what waits, what went in the last 24 hours, what failed. */
 export async function outboxSummary(now = new Date()): Promise<OutboxSummary> {
-  const [queued, next, sent, failed] = await Promise.all([
+  const [queued, next, sent, waiting, failed] = await Promise.all([
     prisma.mailOutbox.count({ where: { status: { in: ["queued", "sending"] } } }),
     prisma.mailOutbox.findFirst({ where: { status: "queued" }, orderBy: { notBefore: "asc" }, select: { notBefore: true } }),
     prisma.mailOutbox.aggregate({ where: { status: "sent", sentAt: { gte: new Date(now.getTime() - DAY) } }, _sum: { recipientCount: true } }),
+    prisma.mailOutbox.findMany({
+      where: { status: { in: ["queued", "sending"] } },
+      orderBy: [{ notBefore: "asc" }, { createdAt: "asc" }],
+      take: WAITING_SHOWN,
+      select: { id: true, kind: true, recipients: true, subject: true, status: true, notBefore: true, attempts: true },
+    }),
     prisma.mailOutbox.findMany({
       where: { status: "failed" },
       orderBy: { createdAt: "desc" },
@@ -233,5 +244,27 @@ export async function outboxSummary(now = new Date()): Promise<OutboxSummary> {
   } catch {
     enabled = false;
   }
-  return { enabled, limits: mailLimits(), queued, sentToday: sent._sum.recipientCount ?? 0, nextAt: next?.notBefore ?? null, failed };
+  return {
+    enabled,
+    limits: mailLimits(),
+    queued,
+    sentToday: sent._sum.recipientCount ?? 0,
+    nextAt: next?.notBefore ?? null,
+    waiting: waiting as OutboxSummary["waiting"],
+    failed,
+  };
+}
+
+/**
+ * Deletes a mail that has not gone out yet. Only a queued row: one being sent right now is
+ * left alone, and the sender claims rows the same way, so the two cannot both win.
+ * A deleted admin notice comes back with the next sign-up request.
+ */
+export async function deleteQueuedMail(id: string): Promise<boolean> {
+  return (await prisma.mailOutbox.deleteMany({ where: { id, status: "queued" } })).count > 0;
+}
+
+/** Whether a row is the admins' notice, whose recipients and text are filled in when it is sent. */
+export function isAdminNotice(kind: string): boolean {
+  return kind === ADMIN_NOTICE;
 }
