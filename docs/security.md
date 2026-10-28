@@ -14,7 +14,7 @@ What the app does to stay safe when it is reachable from the internet, and what 
 
 - Wrong login guesses are limited per IP (10 per 15 minutes) and per account (20 per hour), so neither spoofing `X-Forwarded-For` nor spreading guesses over addresses helps. A right password spends neither budget.
 - Sign-ups, the setup form and the click redirect are limited per IP; uploads and preview fetches per user. The sign-up form stops taking requests once 100 are waiting.
-- Mail is capped so a flood of sign-ups cannot spend the relay's quota or turn the app into a spam cannon: the admins' notice goes out at most twice an hour whatever the number of requests, and decision mails at most ten an hour. Sign-up addresses are not verified, so a decision mail can go to an address that bounces; the cap keeps that small. Mail is sent with STARTTLS required unless `SMTP_TLS=none`.
+- Mail goes through an outbox with a rolling daily and hourly budget (`MAIL_DAILY_LIMIT`, `MAIL_HOURLY_LIMIT`), counted in addresses from what was actually sent, so a flood of sign-ups cannot spend the provider's quota: the admins' notice is one message however many requests arrive, and new requests are capped at 20 a day across all addresses. Sign-up addresses are not verified, so a decision mail can bounce; "Spam" declines without one, and a bounced address is never retried. Mail is sent with STARTTLS required unless `SMTP_TLS=none`.
 - `TRUST_PROXY` says which header carries the visitor's address. It is only safe when nothing but that proxy can reach port 3000, which is why compose publishes the port on `127.0.0.1`.
 
 ## Input

@@ -1,10 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MailConfigError, mailConfig, transportOptions } from "@/lib/mail/config";
 import { decisionMail, signupRequestsMail } from "@/lib/mail/templates";
-import { Throttle } from "@/lib/mail/throttle";
 
 vi.mock("@/lib/db", () => ({ prisma: {} }));
-const { decisionKind } = await import("@/lib/mail/notices");
+const { decisionKind, mailLimits, retryDelayMs } = await import("@/lib/mail/outbox");
 
 const base = { SMTP_HOST: "mail.example.com", MAIL_FROM: "JuLinks <noreply@example.com>" };
 
@@ -79,34 +78,18 @@ describe("decisionKind", () => {
   });
 });
 
-describe("Throttle", () => {
-  afterEach(() => {
-    vi.useRealTimers();
+describe("mailLimits", () => {
+  it("defaults to a share of a 100-a-day plan and reads the overrides", () => {
+    expect(mailLimits({})).toEqual({ daily: 50, hourly: 10 });
+    expect(mailLimits({ MAIL_DAILY_LIMIT: "80", MAIL_HOURLY_LIMIT: "15" })).toEqual({ daily: 80, hourly: 15 });
+    expect(mailLimits({ MAIL_DAILY_LIMIT: "lots", MAIL_HOURLY_LIMIT: "0" })).toEqual({ daily: 50, hourly: 10 });
   });
+});
 
-  it("sends at once, then once more when the cooldown ends however many triggers came meanwhile", async () => {
-    vi.useFakeTimers();
-    const send = vi.fn(async () => undefined);
-    const throttle = new Throttle(send, 30 * 60 * 1000);
-
-    await throttle.trigger();
-    expect(send).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(60 * 1000);
-    await throttle.trigger();
-    await throttle.trigger();
-    await throttle.trigger();
-    expect(send).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(29 * 60 * 1000);
-    expect(send).toHaveBeenCalledTimes(2);
-
-    // Quiet afterwards: the timer does not fire again on its own.
-    vi.advanceTimersByTime(2 * 60 * 60 * 1000);
-    expect(send).toHaveBeenCalledTimes(2);
-
-    // A trigger after a quiet cooldown sends at once again.
-    await throttle.trigger();
-    expect(send).toHaveBeenCalledTimes(3);
+describe("retryDelayMs", () => {
+  it("doubles from two minutes and stops at six hours", () => {
+    expect(retryDelayMs(1)).toBe(2 * 60 * 1000);
+    expect(retryDelayMs(3)).toBe(8 * 60 * 1000);
+    expect(retryDelayMs(20)).toBe(6 * 60 * 60 * 1000);
   });
 });

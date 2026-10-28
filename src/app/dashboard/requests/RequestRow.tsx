@@ -31,7 +31,7 @@ export function RequestRow({
   const status = STATUS[request.status];
   const editable = request.id !== reviewerId && canManage(reviewerRole, request.role);
 
-  function decide(decision: { status: "approved"; role: Role } | { status: "denied" }) {
+  function decide(decision: { status: "approved"; role: Role } | { status: "denied"; notify?: boolean }) {
     setError(null);
     startTransition(async () => {
       const result = await reviewSignup(request.id, decision);
@@ -41,7 +41,7 @@ export function RequestRow({
 
   return (
     <li className="flex flex-wrap items-center gap-3 py-3" data-testid="request-row" data-status={request.status} data-role={request.role}>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 basis-56">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate font-medium">/{request.username}</span>
           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}>{status.label}</span>
@@ -62,7 +62,7 @@ export function RequestRow({
         )}
       </div>
       {editable && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <select
             className="shrink-0 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 shadow-xs focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
             value={role}
@@ -88,6 +88,18 @@ export function RequestRow({
           {request.status !== "denied" && (
             <button type="button" className="btn-secondary" disabled={pending} onClick={() => decide({ status: "denied" })} aria-label={`Deny ${request.username}`}>
               Deny
+            </button>
+          )}
+          {request.status === "pending" && (
+            <button
+              type="button"
+              className="btn-ghost whitespace-nowrap"
+              disabled={pending}
+              onClick={() => decide({ status: "denied", notify: false })}
+              aria-label={`Deny ${request.username} as spam`}
+              title="Deny without sending a mail: junk sign-ups often use made-up addresses"
+            >
+              Spam
             </button>
           )}
         </div>

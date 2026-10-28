@@ -1,29 +1,18 @@
 import { createTransport } from "nodemailer";
-import { MailConfigError, mailConfig, transportOptions } from "@/lib/mail/config";
+import type { MailConfig } from "@/lib/mail/config";
+import { transportOptions } from "@/lib/mail/config";
 
 export type Mail = { to: string[]; subject: string; text: string; html: string };
 
 /**
- * Sends one message and reports whether it went out. Never throws: a mail that cannot be
- * sent (mail off, relay down, quota spent) is logged and the caller carries on, so a sign-up
- * or a review never fails because of it.
+ * What became of one attempt. A permanent failure (the server refused an address or the
+ * message with a 5xx) is not worth retrying; anything else (relay down, 451 "try later",
+ * a quota, a refused login) is.
  */
-export async function sendMail(mail: Mail): Promise<boolean> {
-  if (mail.to.length === 0) return false;
-  let config;
-  try {
-    config = mailConfig();
-  } catch (error) {
-    if (error instanceof MailConfigError) {
-      console.error(`[mail] not sent, mail is misconfigured: ${error.message}`);
-      return false;
-    }
-    throw error;
-  }
-  if (!config) {
-    console.info(`[mail] off (no SMTP_HOST), not sent: "${mail.subject}" to ${mail.to.length} recipient(s)`);
-    return false;
-  }
+export type Delivery = { ok: true } | { ok: false; permanent: boolean; error: string };
+
+/** Hands one message to the SMTP server. Never throws. */
+export async function deliver(config: MailConfig, mail: Mail): Promise<Delivery> {
   try {
     await createTransport(transportOptions(config)).sendMail({
       from: config.from,
@@ -32,9 +21,10 @@ export async function sendMail(mail: Mail): Promise<boolean> {
       text: mail.text,
       html: mail.html,
     });
-    return true;
+    return { ok: true };
   } catch (error) {
-    console.error(`[mail] not sent: "${mail.subject}": ${error instanceof Error ? error.message : String(error)}`);
-    return false;
+    const { responseCode, code, message } = error as { responseCode?: number; code?: string; message?: string };
+    const permanent = typeof responseCode === "number" && responseCode >= 500 && responseCode < 600 && code !== "EAUTH";
+    return { ok: false, permanent, error: (message ?? String(error)).slice(0, 500) };
   }
 }

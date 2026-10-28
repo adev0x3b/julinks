@@ -26,12 +26,14 @@ export class UniqueViolation extends Error {
 
 /** The queue of pending requests is full: a public sign-up form must not let anyone fill the table. */
 export class RequestsFull extends Error {
-  constructor() {
-    super("Sign-ups are paused until the current requests are reviewed");
+  constructor(reason: "queue" | "today" = "queue") {
+    super(reason === "queue" ? "Sign-ups are paused until the current requests are reviewed" : "Sign-ups are paused for today, try again tomorrow");
   }
 }
 
 export const MAX_PENDING_REQUESTS = 100;
+/** New requests a day, from every address together: a botnet cannot fill the review queue in one go. */
+export const MAX_REQUESTS_PER_DAY = 20;
 
 /**
  * Stores a sign-up. Invite only: the account starts as a pending request unless the
@@ -54,8 +56,12 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
         async (tx) => {
           const status = options.status ?? "pending";
           const role = options.role ?? "client";
-          if (status === "pending" && (await tx.user.count({ where: { status: "pending" } })) >= MAX_PENDING_REQUESTS) {
-            throw new RequestsFull();
+          if (status === "pending") {
+            if ((await tx.user.count({ where: { status: "pending" } })) >= MAX_PENDING_REQUESTS) throw new RequestsFull("queue");
+            // Requests from the last 24 hours, whatever became of them since (a denied one still counted).
+            const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const today = await tx.user.count({ where: { isDemo: false, createdAt: { gte: since } } });
+            if (today >= MAX_REQUESTS_PER_DAY) throw new RequestsFull("today");
           }
           return tx.user.create({
             data: {

@@ -17,7 +17,7 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3 sm:px-6">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
             <Logo href="/dashboard" />
-            <nav className="flex items-center gap-1 text-sm">
+            <nav className="flex flex-wrap items-center gap-1 text-sm">
               <Link href="/dashboard" className="btn-ghost">
                 Links
               </Link>

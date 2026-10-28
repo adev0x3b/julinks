@@ -106,7 +106,7 @@ async function main() {
 
   await page.goto(`${base}/dashboard/requests`);
   await page.getByTestId("pending-requests").waitFor();
-  await page.getByRole("button", { name: `Deny ${requests[2].username}` }).click();
+  await page.getByRole("button", { name: `Deny ${requests[2].username}`, exact: true }).click();
   await page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: requests[2].username }).waitFor();
   await shot(page, `${out}/requests.png`);
 

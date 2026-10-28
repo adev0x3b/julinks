@@ -24,7 +24,7 @@ export default async function StatsPage() {
         <DailyClicksChart data={stats.daily} />
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <section className="card">
           <h2 className="mb-4 text-base font-semibold">Clicks per link</h2>
           {topLinks.length === 0 ? (

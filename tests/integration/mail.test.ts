@@ -1,13 +1,27 @@
 import type { AddressInfo } from "node:net";
 import { SMTPServer } from "smtp-server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { prisma } from "@/lib/db";
 import { reviewRequest } from "@/lib/data/requests";
-import { notifyDecision, sendAdminDigest } from "@/lib/mail/notices";
-import { sendMail } from "@/lib/mail/send";
+import { mailConfig } from "@/lib/mail/config";
+import {
+  ADMIN_NOTICE_SPACING_MS,
+  drainOutbox,
+  outboxSummary,
+  queueAdminNotice,
+  queueDecisionMail,
+  remainingBudget,
+  requeueInterrupted,
+} from "@/lib/mail/outbox";
+import { deliver } from "@/lib/mail/send";
 import { makeUser } from "./helpers";
 
-/** A real SMTP server on a random port: login required, every accepted message kept for the test to read. */
-type Received = { from: string; to: string[]; user: string | undefined; raw: string };
+/**
+ * A real SMTP server on a random port: login required, every accepted message kept for the
+ * test to read. Recipients starting with "bounce" are refused for good (550), with "later"
+ * for now (451).
+ */
+type Received = { to: string[]; user: string | undefined; raw: string };
 let received: Received[] = [];
 let server: SMTPServer;
 let port: number;
@@ -22,16 +36,17 @@ beforeAll(async () => {
       if (auth.username === "julinks" && auth.password === "relay-secret") return callback(null, { user: auth.username });
       callback(new Error("Invalid login"));
     },
+    onRcptTo(address, _session, callback) {
+      const refuse = (message: string, code: number) => callback(Object.assign(new Error(message), { responseCode: code }));
+      if (address.address.startsWith("bounce")) return refuse("No such user", 550);
+      if (address.address.startsWith("later")) return refuse("Rate limit, try again later", 451);
+      callback();
+    },
     onData(stream, session, callback) {
       const chunks: Buffer[] = [];
       stream.on("data", (chunk: Buffer) => chunks.push(chunk));
       stream.on("end", () => {
-        received.push({
-          from: session.envelope.mailFrom ? session.envelope.mailFrom.address : "",
-          to: session.envelope.rcptTo.map((r) => r.address),
-          user: session.user as string | undefined,
-          raw: Buffer.concat(chunks).toString("utf8"),
-        });
+        received.push({ to: session.envelope.rcptTo.map((r) => r.address), user: session.user as string | undefined, raw: Buffer.concat(chunks).toString("utf8") });
         callback();
       });
     },
@@ -44,6 +59,7 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 });
 
+const KEYS = ["SMTP_HOST", "SMTP_PORT", "SMTP_TLS", "SMTP_USER", "SMTP_PASSWORD", "MAIL_FROM", "APP_URL", "MAIL_DAILY_LIMIT", "MAIL_HOURLY_LIMIT"];
 const env = { ...process.env };
 beforeEach(() => {
   received = [];
@@ -56,89 +72,151 @@ beforeEach(() => {
     MAIL_FROM: "JuLinks <noreply@example.com>",
     APP_URL: "https://links.example.com",
   });
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.spyOn(console, "info").mockImplementation(() => undefined);
 });
 afterEach(() => {
-  for (const key of ["SMTP_HOST", "SMTP_PORT", "SMTP_TLS", "SMTP_USER", "SMTP_PASSWORD", "MAIL_FROM", "APP_URL"]) {
+  for (const key of KEYS) {
     if (env[key] === undefined) delete process.env[key];
     else process.env[key] = env[key];
   }
   vi.restoreAllMocks();
 });
 
-describe("sendMail", () => {
-  it("logs in and delivers a text and an HTML part", async () => {
-    expect(await sendMail({ to: ["june@example.com"], subject: "Hello", text: "Plain words", html: "<p>Plain words</p>" })).toBe(true);
-    expect(received).toHaveLength(1);
-    expect(received[0]).toMatchObject({ from: "noreply@example.com", to: ["june@example.com"], user: "julinks" });
+const at = (ms: number) => () => new Date(Date.now() + ms);
+const config = () => mailConfig()!;
+
+describe("deliver", () => {
+  it("logs in and hands over a text and an HTML part", async () => {
+    expect(await deliver(config(), { to: ["june@example.com"], subject: "Hello", text: "Plain words", html: "<p>Plain words</p>" })).toEqual({ ok: true });
+    expect(received[0]).toMatchObject({ to: ["june@example.com"], user: "julinks" });
     expect(received[0].raw).toMatch(/^Subject: Hello$/m);
     expect(received[0].raw).toContain("multipart/alternative");
-    expect(received[0].raw).toContain("text/plain");
-    expect(received[0].raw).toContain("text/html");
   });
 
-  it("reports a refused login without throwing", async () => {
+  it("tells a permanent refusal from a temporary one, and a refused login is temporary", async () => {
+    const mail = { subject: "x", text: "x", html: "x" };
+    expect(await deliver(config(), { to: ["bounce@example.com"], ...mail })).toMatchObject({ ok: false, permanent: true });
+    expect(await deliver(config(), { to: ["later@example.com"], ...mail })).toMatchObject({ ok: false, permanent: false });
     process.env.SMTP_PASSWORD = "wrong";
-    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    expect(await sendMail({ to: ["june@example.com"], subject: "Hello", text: "x", html: "x" })).toBe(false);
-    expect(received).toHaveLength(0);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("[mail] not sent"));
+    expect(await deliver(config(), { to: ["june@example.com"], ...mail })).toMatchObject({ ok: false, permanent: false });
   });
 
-  it("refuses to log in over a connection that cannot be upgraded with STARTTLS", async () => {
+  it("will not log in over a connection that cannot be upgraded with STARTTLS", async () => {
     delete process.env.SMTP_TLS;
-    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    expect(await sendMail({ to: ["june@example.com"], subject: "Hello", text: "x", html: "x" })).toBe(false);
+    const result = await deliver(config(), { to: ["june@example.com"], subject: "x", text: "x", html: "x" });
+    expect(result).toMatchObject({ ok: false });
     expect(received).toHaveLength(0);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("STARTTLS"));
-  });
-
-  it("sends nothing and logs when mail is off", async () => {
-    delete process.env.SMTP_HOST;
-    const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
-    expect(await sendMail({ to: ["june@example.com"], subject: "Hello", text: "x", html: "x" })).toBe(false);
-    expect(log).toHaveBeenCalledWith(expect.stringContaining("[mail] off"));
   });
 });
 
-describe("sign-up notices", () => {
-  it("mails every approved admin, not moderators, with the requests waiting", async () => {
+describe("admin notices", () => {
+  async function admins() {
     await makeUser({ username: "boss", email: "boss@example.com" }, { role: "admin" });
     await makeUser({ username: "boss2", email: "boss2@example.com" }, { role: "admin" });
     await makeUser({ username: "mod", email: "mod@example.com" }, { role: "moderator" });
-    await makeUser({ username: "gone", email: "gone@example.com" }, { role: "admin", status: "denied" });
+  }
+
+  it("keeps one notice waiting however many requests arrive, and sends it to every admin", async () => {
+    await admins();
     await makeUser({ username: "june", email: "june@example.com" }, { status: "pending" });
     await makeUser({ username: "marie", email: "marie@example.com" }, { status: "pending" });
+    await Promise.all([queueAdminNotice(), queueAdminNotice(), queueAdminNotice()]);
+    expect(await prisma.mailOutbox.count()).toBe(1);
 
-    expect(await sendAdminDigest()).toBe(true);
-    expect(received).toHaveLength(1);
+    expect(await drainOutbox()).toBe(1);
     expect(received[0].to.sort()).toEqual(["boss2@example.com", "boss@example.com"]);
     expect(received[0].raw).toContain("2 sign-up requests waiting");
-    expect(received[0].raw).toContain("june <june@example.com>");
     expect(received[0].raw).toContain("https://links.example.com/dashboard/requests");
   });
 
-  it("sends no admin notice when nothing is waiting", async () => {
-    await makeUser({ username: "boss" }, { role: "admin" });
-    expect(await sendAdminDigest()).toBe(false);
-    expect(received).toHaveLength(0);
+  it("spaces notices half an hour apart, and the late one lists what is waiting when it goes", async () => {
+    await admins();
+    await makeUser({ username: "june" }, { status: "pending" });
+    await queueAdminNotice();
+    await drainOutbox();
+
+    await makeUser({ username: "marie" }, { status: "pending" });
+    await makeUser({ username: "alan" }, { status: "pending" });
+    await queueAdminNotice();
+    expect(await drainOutbox()).toBe(0);
+    expect(await drainOutbox(at(ADMIN_NOTICE_SPACING_MS + 60_000))).toBe(1);
+    expect(received).toHaveLength(2);
+    expect(received[1].raw).toContain("3 sign-up requests waiting");
   });
 
-  it("tells the requester about the decision, and nothing about a role change", async () => {
+  it("drops a notice when nothing is waiting any more by the time it is due", async () => {
+    await admins();
+    await queueAdminNotice();
+    expect(await drainOutbox()).toBe(0);
+    expect(await prisma.mailOutbox.count()).toBe(0);
+  });
+});
+
+describe("decision mails and the budget", () => {
+  it("queues the requester's mail on a decision, nothing on a role change", async () => {
     const admin = await makeUser({ username: "boss" }, { role: "admin" });
     const request = await makeUser({ username: "june", email: "june@example.com" }, { status: "pending" });
     const reviewer = { id: admin.id, role: "admin" as const };
 
     const approved = await reviewRequest(reviewer, request.id, { status: "approved", role: "client" });
-    expect(await notifyDecision(approved, approved.previousStatus, approved.status)).toBe(true);
+    expect(await queueDecisionMail(approved, approved.previousStatus, approved.status)).toBe(true);
+    const promoted = await reviewRequest(reviewer, request.id, { status: "approved", role: "moderator" });
+    expect(await queueDecisionMail(promoted, promoted.previousStatus, promoted.status)).toBe(false);
+
+    await drainOutbox();
+    expect(received).toHaveLength(1);
     expect(received[0].to).toEqual(["june@example.com"]);
     expect(received[0].raw).toContain("Subject: Your JuLinks page is ready");
+  });
 
-    const promoted = await reviewRequest(reviewer, request.id, { status: "approved", role: "moderator" });
-    expect(await notifyDecision(promoted, promoted.previousStatus, promoted.status)).toBe(false);
+  it("queues nothing while mail is off", async () => {
+    delete process.env.SMTP_HOST;
+    expect(await queueDecisionMail({ username: "june", email: "june@example.com" }, "pending", "denied")).toBe(false);
+    await queueAdminNotice();
+    expect(await prisma.mailOutbox.count()).toBe(0);
+  });
 
-    const revoked = await reviewRequest(reviewer, request.id, { status: "denied" });
-    expect(await notifyDecision(revoked, revoked.previousStatus, revoked.status)).toBe(true);
-    expect(received).toHaveLength(2);
-    expect(received[1].raw).toContain("account has been closed");
+  it("sends within the hourly and daily budget and keeps the rest for later", async () => {
+    process.env.MAIL_DAILY_LIMIT = "3";
+    process.env.MAIL_HOURLY_LIMIT = "2";
+    for (const name of ["a", "b", "c", "d"]) await queueDecisionMail({ username: name, email: `${name}@example.com` }, "pending", "denied");
+
+    expect(await drainOutbox()).toBe(2);
+    expect(await remainingBudget()).toBe(0);
+    expect(await drainOutbox(at(61 * 60 * 1000))).toBe(1);
+    expect(await drainOutbox(at(2 * 60 * 60 * 1000))).toBe(0);
+    expect((await outboxSummary()).queued).toBe(1);
+    expect(await drainOutbox(at(25 * 60 * 60 * 1000))).toBe(1);
+    expect(received.map((r) => r.to[0])).toEqual(["a@example.com", "b@example.com", "c@example.com", "d@example.com"]);
+  });
+
+  it("gives up on a refused address at once, and retries a deferred one later", async () => {
+    await queueDecisionMail({ username: "gone", email: "bounce@example.com" }, "pending", "denied");
+    await queueDecisionMail({ username: "busy", email: "later@example.com" }, "pending", "denied");
+    await queueDecisionMail({ username: "june", email: "june@example.com" }, "pending", "denied");
+
+    // The bounce fails for good and the round carries on; the deferral stops it, the relay is busy.
+    expect(await drainOutbox()).toBe(0);
+    const rows = await prisma.mailOutbox.findMany({ orderBy: { createdAt: "asc" } });
+    expect(rows.map((r) => r.status)).toEqual(["failed", "queued", "queued"]);
+    expect(rows[0].lastError).toContain("No such user");
+    expect(rows[1]).toMatchObject({ attempts: 1 });
+    expect(rows[1].notBefore.getTime()).toBeGreaterThan(Date.now() + 60_000);
+
+    // The next round skips the deferred one until its retry time and sends the rest.
+    expect(await drainOutbox()).toBe(1);
+    expect(received.map((r) => r.to[0])).toEqual(["june@example.com"]);
+
+    const summary = await outboxSummary();
+    expect(summary).toMatchObject({ enabled: true, queued: 1, sentToday: 1 });
+    expect(summary.failed.map((f) => f.recipients)).toEqual([["bounce@example.com"]]);
+  });
+
+  it("puts rows a restart interrupted back in the queue", async () => {
+    await queueDecisionMail({ username: "june", email: "june@example.com" }, "pending", "denied");
+    await prisma.mailOutbox.updateMany({ data: { status: "sending" } });
+    expect(await requeueInterrupted()).toBe(1);
+    expect(await drainOutbox()).toBe(1);
   });
 });

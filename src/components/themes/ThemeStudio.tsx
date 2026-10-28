@@ -102,7 +102,7 @@ export function ThemeStudio({
       : { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null };
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex flex-col gap-6">
         {error && (
           <p className="error mt-0 rounded-lg bg-red-50 p-3" role="alert">

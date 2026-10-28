@@ -4,7 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
 import { profileTag } from "@/lib/cache-tags";
 import { RequestNotFound, ReviewForbidden, reviewRequest, type Decision } from "@/lib/data/requests";
-import { notifyDecision } from "@/lib/mail/notices";
+import { drainOutbox, queueDecisionMail } from "@/lib/mail/outbox";
 import { requireReviewer } from "@/lib/session";
 import { decisionSchema } from "@/lib/validation";
 
@@ -16,11 +16,18 @@ export async function reviewSignup(userId: unknown, input: unknown): Promise<Rev
   const parsed = decisionSchema.safeParse(input);
   if (typeof userId !== "string" || userId.length === 0 || !parsed.success) return { error: "Unknown request" };
   try {
-    const account = await reviewRequest({ id: reviewer.id, role: reviewer.role }, userId, parsed.data as Decision);
+    const { notify, ...decision } = parsed.data;
+    const account = await reviewRequest({ id: reviewer.id, role: reviewer.role }, userId, decision as Decision);
     // Revoking an approved account takes its public page down; approving one makes it appear.
     updateTag(profileTag(account.username));
-    // The requester hears about it by mail, after the response (best effort, see sendMail).
-    after(() => notifyDecision(account, account.previousStatus, account.status));
+    // The requester hears about it by mail, after the response, unless the request was denied as spam:
+    // junk sign-ups often carry made-up addresses, and mail to those bounces.
+    if (notify !== false) {
+      after(async () => {
+        await queueDecisionMail(account, account.previousStatus, account.status);
+        await drainOutbox();
+      });
+    }
   } catch (error) {
     if (error instanceof RequestNotFound) return { error: "That request no longer exists" };
     if (error instanceof ReviewForbidden) return { error: "You cannot take that decision" };

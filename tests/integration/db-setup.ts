@@ -12,6 +12,7 @@ const { prisma } = await import("@/lib/db");
 beforeEach(async () => {
   await prisma.user.deleteMany();
   await prisma.setupCode.deleteMany();
+  await prisma.mailOutbox.deleteMany();
 });
 
 afterAll(async () => {

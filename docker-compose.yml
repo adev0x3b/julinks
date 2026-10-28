@@ -84,6 +84,8 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      MAIL_DAILY_LIMIT: ${MAIL_DAILY_LIMIT:-50}
+      MAIL_HOURLY_LIMIT: ${MAIL_HOURLY_LIMIT:-10}
     ports:
       # Bound to the loopback address: a reverse proxy or tunnel on the same machine reaches it, the
       # LAN does not. WEB_BIND=0.0.0.0 publishes it to every interface.

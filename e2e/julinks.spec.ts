@@ -17,6 +17,7 @@ const user = {
 // Two more sign-ups: one gets approved as a client, one denied.
 const newcomer = { username: `new${run}`, email: `new-${run}@example.com`, password: "correct horse battery staple" };
 const refused = { username: `nope${run}`, email: `nope-${run}@example.com`, password: "correct horse battery staple" };
+const junk = { username: `junk${run}`, email: `junk-${run}@example.com`, password: "correct horse battery staple" };
 
 type Credentials = { username: string; email: string; password: string };
 
@@ -82,6 +83,7 @@ test.beforeAll(async () => {
   try {
     await client.query('delete from users where "isDemo" = false');
     await client.query('delete from setup_codes');
+    await client.query('delete from mail_outbox');
     await client.query('insert into setup_codes (id, "codeHash") values (1, $1)', [await bcrypt.hash(setupCode, 4)]);
   } finally {
     await client.end();
@@ -133,6 +135,7 @@ test("landing page shows the seeded demo profile", async ({ page }) => {
 test("invite only: requests wait for approval, denied ones are told so at login", async ({ page }) => {
   await requestPage(page, newcomer);
   await requestPage(page, refused);
+  await requestPage(page, junk);
 
   // A pending request cannot log in yet; the toast says so.
   await submitLogin(page, newcomer);
@@ -142,20 +145,24 @@ test("invite only: requests wait for approval, denied ones are told so at login"
   await page.goto(`/${newcomer.username}`);
   await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
 
-  // The admin sees both requests, approves one as a client and denies the other.
+  // The admin sees the requests, approves one as a client, denies one and denies the last as spam.
   await login(page);
-  await expect(page.getByTestId("requests-count")).toHaveText("2");
+  await expect(page.getByTestId("requests-count")).toHaveText("3");
   await page.getByTestId("requests-nav").click();
   await expect(page).toHaveURL(/\/dashboard\/requests$/);
   const pendingRows = page.getByTestId("pending-requests").getByTestId("request-row");
-  await expect(pendingRows).toHaveCount(2);
+  await expect(pendingRows).toHaveCount(3);
   // Demo profiles are not requests.
   await expect(page.getByTestId("request-row").filter({ hasText: "/ada" })).toHaveCount(0);
   await page.getByLabel(`Role for ${newcomer.username}`).selectOption("client");
   await page.getByRole("button", { name: `Approve ${newcomer.username}` }).click();
   await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${newcomer.username}` })).toHaveAttribute("data-status", "approved");
-  await page.getByRole("button", { name: `Deny ${refused.username}` }).click();
+  await page.getByRole("button", { name: `Deny ${refused.username}`, exact: true }).click();
   await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${refused.username}` })).toHaveAttribute("data-status", "denied");
+  await page.getByRole("button", { name: `Deny ${junk.username} as spam` }).click();
+  await expect(page.getByTestId("decided-requests").getByTestId("request-row").filter({ hasText: `/${junk.username}` })).toHaveAttribute("data-status", "denied");
+  // Only admins see the mail outbox (off unless the run points SMTP_HOST at a catcher).
+  await expect(page.getByTestId("mail-outbox")).toContainText(process.env.SMTP_HOST ? "Sent, last 24 hours" : "Mail is off");
   await expect(page.getByTestId("no-pending")).toBeVisible();
   await expect(page.getByTestId("requests-count")).toHaveCount(0);
   await logout(page);

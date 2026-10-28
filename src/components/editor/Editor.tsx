@@ -53,7 +53,7 @@ export function Editor({ user, theme, links, folders }: { user: EditorUser; them
   const refresh = () => startTransition(() => router.refresh());
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
       <div className="flex flex-col gap-6">
         <ProfilePanel username={user.username} themeName={theme.name} draft={profile} onChange={setProfile} />
         <FoldersPanel folders={folderItems} onChange={setFolderItems} onRefresh={refresh} />

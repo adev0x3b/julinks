@@ -59,8 +59,9 @@ export const setupSchema = z
 
 /** A reviewer's decision on a sign-up request. */
 export const decisionSchema = z.discriminatedUnion("status", [
-  z.object({ status: z.literal("approved"), role: z.enum(ROLES) }),
-  z.object({ status: z.literal("denied") }),
+  z.object({ status: z.literal("approved"), role: z.enum(ROLES), notify: z.boolean().optional() }),
+  /** notify: false is "deny as spam": no mail to an address that is probably made up. */
+  z.object({ status: z.literal("denied"), notify: z.boolean().optional() }),
 ]);
 
 export const loginSchema = z.object({

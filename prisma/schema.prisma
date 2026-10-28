@@ -160,3 +160,37 @@ model SetupCode {
 
   @@map("setup_codes")
 }
+
+/// Mail waiting to go out, and the record of what went (src/lib/mail/outbox.ts). Every message is a row
+/// first; a loop in the app sends rows while the daily and hourly budgets allow, so nothing is lost to a
+/// restart or a spent quota. Sent rows are what the budget is counted from.
+model MailOutbox {
+  id             String     @id @default(cuid())
+  /// "admin-requests" (built when it is sent, from the requests waiting then) or "decision".
+  kind           String
+  /// Empty for an admin notice: the recipients are the admins at send time.
+  recipients     String[]
+  subject        String     @default("")
+  text           String     @default("")
+  html           String     @default("")
+  status         MailStatus @default(queued)
+  attempts       Int        @default(0)
+  /// Not sent before this time: the admin notice's half-hour spacing, or a retry's backoff.
+  notBefore      DateTime   @default(now())
+  /// How many addresses the message went to: what the provider's quota counts.
+  recipientCount Int        @default(0)
+  lastError      String?
+  createdAt      DateTime   @default(now())
+  sentAt         DateTime?
+
+  @@index([status, notBefore])
+  @@index([sentAt])
+  @@map("mail_outbox")
+}
+
+enum MailStatus {
+  queued
+  sending
+  sent
+  failed
+}

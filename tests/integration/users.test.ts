@@ -6,7 +6,7 @@ import {
   createUser,
   getPublicProfile,
   MAX_PENDING_REQUESTS,
-  RequestsFull,
+  MAX_REQUESTS_PER_DAY,
   setAvatar,
   setAvatarFocus,
   UniqueViolation,
@@ -45,11 +45,37 @@ describe("createUser", () => {
         passwordHash: "x",
         displayName: `Pending ${i}`,
         status: "pending" as const,
+        // Older than a day, so this is the queue limit and not the daily one.
+        createdAt: new Date(Date.now() - 48 * 60 * 60 * 1000),
       })),
     });
-    await expect(createUser({ username: "late", email: "late@example.com", password: "12345678", displayName: "Late" })).rejects.toBeInstanceOf(RequestsFull);
+    await expect(createUser({ username: "late", email: "late@example.com", password: "12345678", displayName: "Late" })).rejects.toThrow(
+      "until the current requests are reviewed",
+    );
     // Approved accounts (tests, seeds) are not requests and still go through.
     await expect(makeUser({ username: "seeded" })).resolves.toMatchObject({ status: "approved" });
+  });
+
+  it("takes at most MAX_REQUESTS_PER_DAY new requests in 24 hours, whatever became of them", async () => {
+    const day = Date.now() - 60 * 60 * 1000;
+    await prisma.user.createMany({
+      data: Array.from({ length: MAX_REQUESTS_PER_DAY }, (_, i) => ({
+        username: `today${i}`,
+        email: `today${i}@example.com`,
+        passwordHash: "x",
+        displayName: `Today ${i}`,
+        // Denied ones count too: denying does not reopen the day's budget.
+        status: i % 2 === 0 ? ("pending" as const) : ("denied" as const),
+        createdAt: new Date(day),
+      })),
+    });
+    await expect(createUser({ username: "late", email: "late@example.com", password: "12345678", displayName: "Late" })).rejects.toThrow(
+      "paused for today",
+    );
+    await prisma.user.updateMany({ data: { createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000) } });
+    await expect(createUser({ username: "late", email: "late@example.com", password: "12345678", displayName: "Late" })).resolves.toMatchObject({
+      status: "pending",
+    });
   });
 
   it("rejects a duplicate username or email with the offending field", async () => {

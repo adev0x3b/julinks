@@ -1,6 +1,7 @@
 import { listRequests } from "@/lib/data/requests";
 import { assignableRoles } from "@/lib/roles";
 import { requireReviewer } from "@/lib/session";
+import { MailOutbox } from "./MailOutbox";
 import { RequestRow } from "./RequestRow";
 
 export const metadata = { title: "Requests" };
@@ -15,7 +16,8 @@ export default async function RequestsPage() {
       <section className="card">
         <h2 className="text-base font-semibold">Waiting for a decision</h2>
         <p className="mb-4 text-sm text-stone-500">
-          People who asked for a page. Pick a role and approve to let them log in; deny and the login page tells them so.
+          People who asked for a page. Pick a role and approve to let them log in; deny and the login page tells them so. Spam denies
+          without sending a mail.
         </p>
         {pending.length === 0 ? (
           <p className="text-sm text-stone-500" data-testid="no-pending">
@@ -45,6 +47,8 @@ export default async function RequestsPage() {
           </ul>
         )}
       </section>
+
+      {reviewer.role === "admin" && <MailOutbox />}
     </div>
   );
 }

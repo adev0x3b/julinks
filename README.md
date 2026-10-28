@@ -77,10 +77,16 @@ Everything is read from `.env` (see [`.env.example`](.env.example) for the comme
 | `ALLOW_DEMO_LOGIN` | `1` | Set `0` on a public site so nobody logs in as the demo profiles. |
 | `S3_*` | the compose SeaweedFS | Any S3-compatible service works, AWS S3 and Cloudflare R2 included. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | unset, `587` | Mail through any SMTP server with STARTTLS. Unset means no mail; the app logs what it would have sent. |
+| `MAIL_DAILY_LIMIT`, `MAIL_HOURLY_LIMIT` | `50`, `10` | Addresses the app may mail per rolling 24 hours and hour. Keep them under your provider's quota. |
 
 ### Mail
 
-The admins get one email when a sign-up request arrives, and at most one more per half hour while others keep coming, so a burst of requests costs two messages. A requester gets one when their request is approved or declined, or their account closed; past ten of those an hour the rest are skipped and the requester finds out at login. A send that fails is logged and never blocks the sign-up or the review.
+Every mail goes into an outbox table first, and the app sends from it once a minute while the daily and hourly budget allows. What does not fit waits there, through restarts, until it does; admins see the queue, the day's count and anything that failed at the bottom of the Requests page.
+
+- The admins get one email when a sign-up request arrives. Only one notice waits at a time, half an hour apart, and it lists the requests waiting when it goes out, so a burst of requests costs two messages.
+- A requester gets one when their request is approved or declined, or their account closed. **Spam** on the Requests page declines without a mail, since junk sign-ups tend to use made-up addresses that bounce.
+- A temporary refusal is retried with growing gaps; a bounced address is marked failed and not retried. Nothing about mail ever blocks a sign-up or a review.
+- At most 20 new requests a day are taken, from every address together, so a botnet cannot fill the review queue.
 
 If the relay runs in another compose project on the same machine, [`docker-compose.mail.yml`](docker-compose.mail.yml) joins its Docker network; turn it on with `COMPOSE_FILE` in `.env` (see [`.env.example`](.env.example)).
 
