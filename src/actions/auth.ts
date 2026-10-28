@@ -5,9 +5,11 @@ import { after } from "next/server";
 import { DENIED_MESSAGE, PENDING_MESSAGE } from "@/lib/auth-messages";
 import { authenticate, createUser, RequestsFull, UniqueViolation } from "@/lib/data/users";
 import { demoLoginAllowed } from "@/lib/config";
+import { signupsPaused, startSignup, usernameTaken, type SignupInput } from "@/lib/data/signup";
+import { mailEnabled } from "@/lib/mail/config";
 import { isSetupPending } from "@/lib/data/setup";
 import { drainOutbox, queueAdminNotice } from "@/lib/mail/outbox";
-import { accountLimiter, authLimiter, retryLater } from "@/lib/rate-limit";
+import { accountLimiter, authLimiter, mailLinkLimiter, retryLater } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { createSession, destroySession } from "@/lib/session";
 import { fieldErrors, loginSchema, signupSchema } from "@/lib/validation";
@@ -15,8 +17,10 @@ import { fieldErrors, loginSchema, signupSchema } from "@/lib/validation";
 export type AuthFormState = {
   errors?: Record<string, string>;
   values?: Record<string, string>;
-  /** Set once a sign-up request has been stored: the form swaps for a confirmation. */
+  /** Set once a sign-up request has been stored (mail off): the form swaps for a confirmation. */
   requested?: { username: string };
+  /** Set once a sign-up has been taken with mail on: the form says to look for the link. */
+  confirmSent?: { email: string };
   /** Login refused because of the account's status: shown as a toast. `at` keys the toast per attempt. */
   toast?: { tone: "info" | "danger"; message: string; at: number };
 };
@@ -28,8 +32,9 @@ function formValues(formData: FormData, keys: string[]): Record<string, string> 
 }
 
 /**
- * Invite only: a sign-up stores a pending request and does not log the user in. The admin
- * who reviews requests was created at /setup, so there is always someone to do it.
+ * Invite only: a sign-up becomes a pending request and does not log the user in. The admin
+ * who reviews requests was created at /setup, so there is always someone to do it. With mail
+ * on, the request is only stored once its email is confirmed (src/lib/data/signup.ts).
  */
 export async function signup(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const values = formValues(formData, ["username", "email"]);
@@ -43,6 +48,7 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
   if (!parsed.success) {
     return { values, errors: fieldErrors(parsed.error) };
   }
+  if (mailEnabled()) return signupWithConfirmation(parsed.data, values);
   try {
     const user = await createUser({ ...parsed.data, displayName: parsed.data.username });
     // The admins hear about it by mail, after the response: one notice waits at a time, half an hour apart.
@@ -58,6 +64,24 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
     if (error instanceof RequestsFull) return { values, errors: { form: error.message } };
     throw error;
   }
+}
+
+/**
+ * The same answer for every address: whether it is new or already has an account only shows in
+ * the mail its owner gets. Usernames are public page addresses, so a taken one is still said.
+ */
+async function signupWithConfirmation(input: SignupInput, values: Record<string, string>): Promise<AuthFormState> {
+  if (await usernameTaken(input.username)) return { values, errors: { username: "That username is already taken" } };
+  const paused = await signupsPaused();
+  if (paused) return { values, errors: { form: paused.message } };
+  const limit = mailLinkLimiter.check(`signup:${await clientIp()}`);
+  if (!limit.ok) return { values, errors: { form: retryLater("sign-ups", limit) } };
+  after(async () => {
+    const outcome = await startSignup(input);
+    if (outcome === "queued" || outcome === "exists") await drainOutbox();
+    else console.info(`[mail] sign-up mail not sent: ${outcome}`);
+  });
+  return { confirmSent: { email: input.email } };
 }
 
 export async function login(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {

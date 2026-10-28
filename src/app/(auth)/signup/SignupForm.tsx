@@ -11,6 +11,22 @@ export function SignupForm() {
   const [state, action, pending] = useActionState(signup, initial);
   const v = state.values ?? {};
   const e = state.errors ?? {};
+  if (state.confirmSent) {
+    return (
+      <div className="flex flex-col gap-4" data-testid="confirm-sent">
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900" role="status">
+          We sent a link to <strong className="break-all">{state.confirmSent.email}</strong>.
+        </p>
+        <p className="text-sm text-stone-600">
+          Open it within 24 hours to confirm your email, then an admin will review your request. Nothing arrived? Have a look in the spam
+          folder, or sign up again in an hour.
+        </p>
+        <Link href="/login" className="btn-secondary text-center">
+          Back to log in
+        </Link>
+      </div>
+    );
+  }
   if (state.requested) {
     return (
       <div className="flex flex-col gap-4" data-testid="request-sent">

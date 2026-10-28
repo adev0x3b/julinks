@@ -16,6 +16,11 @@ const ADMIN_NOTICE = "admin-requests";
 const DECISION = "decision";
 /** "Forgot password" links: sent ahead of everything else, and dropped if they cannot go out in time. */
 export const RESET_MAIL = "password-reset";
+/** Sign-up mails: the confirmation link, or "this address already has an account" to its owner. */
+export const CONFIRM_MAIL = "signup-confirm";
+export const EXISTS_MAIL = "signup-exists";
+/** Mails whose body holds a live link: once out or given up, only the envelope is kept. */
+const LINK_MAILS = new Set([RESET_MAIL, CONFIRM_MAIL]);
 /** A reset mail that has waited this long is dropped: the link would arrive about to expire. */
 export const RESET_MAIL_MAX_WAIT_MS = 15 * 60 * 1000;
 /** Admin notices are at least this far apart: a burst of sign-ups is one notice, then one more. */
@@ -192,8 +197,7 @@ async function sendClaimed(config: MailConfig, row: Row, budget: number, now: ()
 
   const result = await deliver(config, mail);
   const attempts = row.attempts + 1;
-  // A reset mail's body holds a live link: once it is out (or given up), only the envelope is kept.
-  const forget = row.kind === RESET_MAIL ? { text: "", html: "" } : {};
+  const forget = LINK_MAILS.has(row.kind) ? { text: "", html: "" } : {};
   if (result.ok) {
     await prisma.mailOutbox.update({
       where: { id: row.id },
@@ -227,17 +231,25 @@ export async function requeueInterrupted(): Promise<number> {
   return (await prisma.mailOutbox.updateMany({ where: { status: "sending" }, data: { status: "queued" } })).count;
 }
 
-/** Sent mail is kept a week (the budget needs a day of it), failed mail a month for the admins; then the addresses go. */
-export async function pruneOutbox(now = new Date()): Promise<number> {
-  const { count } = await prisma.mailOutbox.deleteMany({
-    where: {
-      OR: [
-        { status: "sent", sentAt: { lt: new Date(now.getTime() - 7 * DAY) } },
-        { status: "failed", createdAt: { lt: new Date(now.getTime() - 30 * DAY) } },
-      ],
-    },
-  });
-  return count;
+/**
+ * Sent mail is kept a week (the budget needs a day of it), failed mail a month for the admins;
+ * then the addresses go. So do the rows behind mail links: unconfirmed sign-ups (with their
+ * password hash) once their link expires, reset links after a week (their limits look back a day).
+ */
+export async function pruneMailData(now = new Date()): Promise<number> {
+  const [mail] = await prisma.$transaction([
+    prisma.mailOutbox.deleteMany({
+      where: {
+        OR: [
+          { status: "sent", sentAt: { lt: new Date(now.getTime() - 7 * DAY) } },
+          { status: "failed", createdAt: { lt: new Date(now.getTime() - 30 * DAY) } },
+        ],
+      },
+    }),
+    prisma.signupConfirmation.deleteMany({ where: { expiresAt: { lte: now } } }),
+    prisma.passwordReset.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 7 * DAY) } } }),
+  ]);
+  return mail.count;
 }
 
 /**
@@ -248,7 +260,7 @@ export async function startMailLoop(): Promise<void> {
   if (!activeConfig()) return;
   await requeueInterrupted();
   const tick = () =>
-    pruneOutbox()
+    pruneMailData()
       .then(() => drainOutbox())
       .catch((error) => console.error("[mail] outbox round failed:", error));
   setInterval(tick, 60 * 1000);

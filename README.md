@@ -44,7 +44,7 @@ Live at [links.juume.site](https://links.juume.site).
 - **Bio and social icons** for 24 platforms. Type a handle, the app builds the URL.
 - **Themes**: five presets, every colour, gradient, button style, radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.
 - **Stats**: totals, a 30-day chart, clicks per link, top referrers.
-- **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the admins get an email about new requests and the requester one about the decision.
+- **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the requester confirms their email first, the admins get an email about new requests and the requester one about the decision.
 - **Password reset** by mail, with a one-use link.
 - **First-run setup**: a fresh install serves nothing until the admin account is created with a one-time code printed by `docker compose up`.
 - **Dark mode** in the dashboard. Public pages take every colour from their theme.
@@ -87,6 +87,7 @@ Every mail goes into an outbox table first, and the app sends from it once a min
 - The admins get one email when a sign-up request arrives. Only one notice waits at a time, half an hour apart, and it lists the requests waiting when it goes out, so a burst of requests costs two messages.
 - A requester gets one when their request is approved or declined, or their account closed. **Spam** on the Requests page declines without a mail, since junk sign-ups tend to use made-up addresses that bounce.
 - A temporary refusal is retried with growing gaps; a bounced address is marked failed and not retried. Nothing about mail ever blocks a sign-up or a review.
+- A sign-up first mails a confirmation link; only using it puts the request in front of the admins. An address that already has an account gets a mail saying so instead, and the form answers the same either way, so it never tells who is registered. One confirmation per address an hour, one "already exists" a day, 20 sign-up mails a day for the whole site.
 - At most 20 new requests a day are taken, from every address together, so a botnet cannot fill the review queue.
 - **Forgot password?** on the login page mails a link that works once, for 30 minutes. One open link per account and three a day, five requests an hour per IP, twenty a day for the whole site. These go out ahead of everything else and are dropped if they cannot go out within 15 minutes. Without mail the page says to ask an admin.
 

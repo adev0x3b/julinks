@@ -210,3 +210,18 @@ model PasswordReset {
   @@index([userId, createdAt])
   @@map("password_resets")
 }
+
+/// A sign-up whose email is not confirmed yet: it becomes a pending request (a users row) when
+/// its link is used. One per address, replaced by a newer sign-up; gone after 24 hours.
+model SignupConfirmation {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String
+  passwordHash String
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+  @@map("signup_confirmations")
+}

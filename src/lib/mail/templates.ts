@@ -64,6 +64,40 @@ export function resetMail(appUrl: URL, username: string, token: string, minutes:
   return { subject: "Reset your JuLinks password", text, html };
 }
 
+/** The sign-up confirmation: a one-use link that turns the sign-up into a request for the admins. */
+export function confirmSignupMail(appUrl: URL, username: string, token: string, hours: number): Content {
+  const confirmUrl = new URL(`/signup/confirm/${token}`, appUrl).toString();
+  const intro = `someone, hopefully you, asked for the JuLinks page /${username} with this address.`;
+  const next = `The link works for ${hours} hours. Once you confirm, an admin reviews the request and you get a mail with the decision.`;
+  const ignore = "If it was not you, ignore this mail: nothing is created.";
+  const text = ["Hi,", "", intro, "Confirm your email here:", confirmUrl, "", next, ignore].join("\n");
+  const html = page(
+    `<p>Hi,</p><p>${escape(intro)}</p><p><a href="${escape(confirmUrl)}">Confirm your email</a></p><p>${escape(next)}</p><p>${escape(ignore)}</p>`,
+  );
+  return { subject: "Confirm your email for JuLinks", text, html };
+}
+
+/** Someone signed up with an address that already has an account: tell its owner, never the form. */
+export function accountExistsMail(appUrl: URL, username: string, status: "pending" | "approved" | "denied"): Content {
+  const loginUrl = new URL("/login", appUrl).toString();
+  const forgotUrl = new URL("/forgot-password", appUrl).toString();
+  const intro = `someone, hopefully you, tried to sign up to JuLinks with this address, but it already belongs to /${username}.`;
+  const lines =
+    status === "approved"
+      ? [`Log in at ${loginUrl}`, `Forgot the password? Choose a new one at ${forgotUrl}`]
+      : status === "pending"
+        ? ["Your request is still waiting for an admin. You will get a mail when it is decided."]
+        : ["The request made with this address was declined, so it cannot be used to sign up again."];
+  const ignore = "If it was not you, ignore this mail: nothing has changed.";
+  const text = ["Hi,", "", intro, "", ...lines, "", ignore].join("\n");
+  const htmlLines =
+    status === "approved"
+      ? `<p><a href="${escape(loginUrl)}">Log in</a>. Forgot the password? <a href="${escape(forgotUrl)}">Choose a new one</a>.</p>`
+      : `<p>${escape(lines[0])}</p>`;
+  const html = page(`<p>Hi,</p><p>${escape(intro)}</p>${htmlLines}<p>${escape(ignore)}</p>`);
+  return { subject: "Your JuLinks account", text, html };
+}
+
 function page(body: string): string {
   return `<!doctype html><html><body style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#1c1917">${body}</body></html>`;
 }

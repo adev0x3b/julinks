@@ -682,3 +682,39 @@ test("forgot password: the link sets a new password once, and logs in with it", 
   await page.getByRole("link", { name: "Send a new link" }).click();
   await expect(page).toHaveURL(/\/forgot-password$/);
 });
+
+test("email confirmation: the link stores the request, and asks for another name when it was taken", async ({ page }) => {
+  // Two sign-ups as mail would have left them, put in directly so the run needs no mail server.
+  const fresh = { username: `conf${run}`, email: `conf-${run}@example.com`, password: "correct horse battery staple" };
+  const clash = { username: user.username, email: `clash-${run}@example.com`, password: "correct horse battery staple" };
+  const tokens = [randomBytes(32).toString("base64url"), randomBytes(32).toString("base64url")];
+  const db = new pg.Client({ connectionString: E2E_DATABASE_URL });
+  await db.connect();
+  try {
+    for (const [i, who] of [fresh, clash].entries()) {
+      await db.query(
+        `insert into signup_confirmations (id, email, username, "passwordHash", "tokenHash", "expiresAt") values ($1, $2, $3, $4, $5, now() + interval '24 hours')`,
+        [`e2e-confirm-${i}`, who.email, who.username, await bcrypt.hash(who.password, 4), createHash("sha256").update(tokens[i]).digest("hex")],
+      );
+    }
+  } finally {
+    await db.end();
+  }
+
+  // Opening the link changes nothing; the button confirms.
+  await page.goto(`/signup/confirm/${tokens[0]}`);
+  await expect(page.getByText(`/${fresh.username}`)).toBeVisible();
+  await page.getByRole("button", { name: "Confirm my email" }).click();
+  await expect(page.getByTestId("confirm-done")).toContainText(`/${fresh.username}`);
+  await submitLogin(page, fresh);
+  await expect(page.getByTestId("toast")).toContainText("waiting for approval");
+  await page.goto(`/signup/confirm/${tokens[0]}`);
+  await expect(page.getByTestId("confirm-invalid")).toBeVisible();
+
+  // The name was taken while the mail was on its way: pick another, same link.
+  await page.goto(`/signup/confirm/${tokens[1]}`);
+  await expect(page.getByText("Pick another name")).toBeVisible();
+  await page.getByLabel("Username").fill(`clash${run}`);
+  await page.getByRole("button", { name: "Confirm my email" }).click();
+  await expect(page.getByTestId("confirm-done")).toContainText(`/clash${run}`);
+});

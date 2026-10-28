@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { isSetupPending } from "@/lib/data/setup";
 import { InvalidResetLink, requestPasswordReset, resetPassword } from "@/lib/data/password-reset";
 import { drainOutbox } from "@/lib/mail/outbox";
-import { accountLimiter, resetLimiter, retryLater } from "@/lib/rate-limit";
+import { accountLimiter, mailLinkLimiter, retryLater } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { destroySession } from "@/lib/session";
 import { fieldErrors, forgotPasswordSchema, resetPasswordSchema } from "@/lib/validation";
@@ -21,7 +21,7 @@ export type ResetFormState = { errors?: Record<string, string> };
 export async function forgotPassword(_prev: ForgotFormState, formData: FormData): Promise<ForgotFormState> {
   const values = { email: String(formData.get("email") ?? "") };
   if (await isSetupPending()) return { values, errors: { form: "This site is not set up yet" } };
-  const limit = resetLimiter.check(`forgot:${await clientIp()}`);
+  const limit = mailLinkLimiter.check(`forgot:${await clientIp()}`);
   if (!limit.ok) return { values, errors: { form: retryLater("requests", limit) } };
   const parsed = forgotPasswordSchema.safeParse(values);
   if (!parsed.success) return { values, errors: fieldErrors(parsed.error) };
@@ -37,7 +37,7 @@ export async function forgotPassword(_prev: ForgotFormState, formData: FormData)
 export async function chooseNewPassword(_prev: ResetFormState, formData: FormData): Promise<ResetFormState> {
   const ipKey = `reset:${await clientIp()}`;
   // Only wrong links count, like failed logins: links are unguessable, this just keeps scanners out.
-  const limit = resetLimiter.peek(ipKey);
+  const limit = mailLinkLimiter.peek(ipKey);
   if (!limit.ok) return { errors: { form: retryLater("attempts", limit) } };
   const parsed = resetPasswordSchema.safeParse({ password: formData.get("password"), confirmPassword: formData.get("confirmPassword") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
@@ -47,7 +47,7 @@ export async function chooseNewPassword(_prev: ResetFormState, formData: FormDat
     accountLimiter.clear(`login:${account.email}`);
   } catch (error) {
     if (error instanceof InvalidResetLink) {
-      resetLimiter.check(ipKey);
+      mailLinkLimiter.check(ipKey);
       return { errors: { form: error.message } };
     }
     throw error;

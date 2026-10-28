@@ -86,8 +86,8 @@ export const authLimiter = limiter("auth", 10, 15 * 60 * 1000);
  * one cannot. A right password never spends it, so the owner is not locked out by a guesser.
  */
 export const accountLimiter = limiter("account", 20, 60 * 60 * 1000);
-/** "Forgot password" requests, and wrong reset links, per IP: 5 an hour. */
-export const resetLimiter = limiter("reset", 5, 60 * 60 * 1000);
+/** Forms that send a mail with a link (sign-up, "forgot password"), and wrong links, per IP: 5 an hour each. */
+export const mailLinkLimiter = limiter("reset", 5, 60 * 60 * 1000);
 /** 120 redirects per minute per IP on the click endpoint. */
 export const clickLimiter = limiter("click", 120, 60 * 1000);
 /** Image uploads per user: each one is decoded and re-encoded, so keep the CPU honest. */

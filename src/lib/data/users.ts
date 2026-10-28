@@ -7,7 +7,8 @@ import type { Role } from "@/lib/roles";
 import type { SocialPlatformId } from "@/lib/socials";
 import type { ImageFocus } from "@/lib/validation";
 
-export type NewUser = { username: string; email: string; password: string; displayName: string };
+/** A new account; a confirmed sign-up arrives with its password already hashed. */
+export type NewUser = { username: string; email: string; displayName: string } & ({ password: string } | { passwordHash: string });
 export type AccountStatus = "pending" | "approved" | "denied";
 export type { Role };
 export type NewUserOptions = {
@@ -48,7 +49,7 @@ export async function createUser(input: NewUser, options: NewUserOptions = {}) {
   if (existing) {
     throw new UniqueViolation(existing.username === input.username ? "username" : "email");
   }
-  const passwordHash = await hashPassword(input.password);
+  const passwordHash = "passwordHash" in input ? input.passwordHash : await hashPassword(input.password);
   // Serializable so the pending-request cap holds under concurrent sign-ups; a loser retries.
   for (let attempt = 1; ; attempt += 1) {
     try {

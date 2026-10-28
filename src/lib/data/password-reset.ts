@@ -42,8 +42,6 @@ export async function requestPasswordReset(email: string, now = new Date()): Pro
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${RESET_LOCK})`;
     const since = new Date(now.getTime() - DAY);
-    // Links are only needed for a day's count; older rows go, whoever they belonged to.
-    await tx.passwordReset.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 7 * DAY) } } });
     // One link at a time: asking again while the last one still works sends nothing new. Unless its mail
     // never left (dropped, bounced or deleted by an admin): then a new link is the only way in.
     const open = await tx.passwordReset.count({ where: { userId: user.id, usedAt: null, expiresAt: { gt: now } } });

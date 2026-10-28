@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { MailConfigError, mailConfig, mailEnabled, transportOptions } from "@/lib/mail/config";
-import { decisionMail, resetMail, signupRequestsMail } from "@/lib/mail/templates";
+import { accountExistsMail, confirmSignupMail, decisionMail, resetMail, signupRequestsMail } from "@/lib/mail/templates";
 
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 const { decisionKind, mailLimits, retryDelayMs } = await import("@/lib/mail/outbox");
@@ -110,5 +110,23 @@ describe("mailEnabled", () => {
     expect(mailEnabled({})).toBe(false);
     expect(mailEnabled({ SMTP_HOST: "mail.example.com" })).toBe(false);
     expect(mailEnabled(base)).toBe(true);
+  });
+});
+
+describe("sign-up mails", () => {
+  const app = new URL("https://links.example.com");
+  it("carry the confirmation link and what happens next", () => {
+    const mail = confirmSignupMail(app, "june", "tok_EN-abc", 24);
+    expect(mail.text).toContain("https://links.example.com/signup/confirm/tok_EN-abc");
+    expect(mail.text).toContain("/june");
+    expect(mail.text).toContain("24 hours");
+    expect(mail.html).toContain('href="https://links.example.com/signup/confirm/tok_EN-abc"');
+  });
+
+  it("tell the owner of an existing account what to do, by status", () => {
+    expect(accountExistsMail(app, "kim", "approved").text).toContain("https://links.example.com/forgot-password");
+    expect(accountExistsMail(app, "kim", "pending").text).toContain("still waiting for an admin");
+    expect(accountExistsMail(app, "kim", "denied").text).toContain("cannot be used to sign up again");
+    expect(accountExistsMail(app, "<b>", "denied").html).not.toContain("<b>");
   });
 });

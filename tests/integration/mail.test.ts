@@ -3,6 +3,7 @@ import { SMTPServer } from "smtp-server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
 import { requestPasswordReset } from "@/lib/data/password-reset";
+import { startSignup } from "@/lib/data/signup";
 import { reviewRequest } from "@/lib/data/requests";
 import { mailConfig } from "@/lib/mail/config";
 import {
@@ -10,7 +11,7 @@ import {
   RESET_MAIL,
   deleteQueuedMail,
   drainOutbox,
-  pruneOutbox,
+  pruneMailData,
   outboxSummary,
   queueAdminNotice,
   queueDecisionMail,
@@ -296,6 +297,16 @@ describe("reset mails", () => {
   });
 });
 
+describe("sign-up mails", () => {
+  it("send the confirmation link, then wipe it from the outbox", async () => {
+    expect(await startSignup({ username: "june", email: "june@example.com", password: "correct horse battery staple" })).toBe("queued");
+    expect(await drainOutbox()).toBe(1);
+    expect(received[0].raw).toContain("/signup/confirm/");
+    const sent = await prisma.mailOutbox.findFirstOrThrow();
+    expect(sent).toMatchObject({ kind: "signup-confirm", status: "sent", text: "", html: "" });
+  });
+});
+
 describe("keeping the outbox moving", () => {
   it("fails a notice with more admins than the hourly limit instead of blocking the queue behind it", async () => {
     process.env.MAIL_HOURLY_LIMIT = "1";
@@ -334,7 +345,7 @@ describe("keeping the outbox moving", () => {
         { kind: "decision", recipients: ["e@example.com"], status: "queued", createdAt: ago(40) },
       ],
     });
-    expect(await pruneOutbox()).toBe(2);
+    expect(await pruneMailData()).toBe(2);
     const left = await prisma.mailOutbox.findMany({ orderBy: { recipients: "asc" } });
     expect(left.map((r) => r.recipients[0]).sort()).toEqual(["b@example.com", "d@example.com", "e@example.com"]);
   });
