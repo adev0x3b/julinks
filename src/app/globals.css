@@ -176,7 +176,7 @@ body {
 .jl-button {
   background: var(--jl-btn-bg);
   color: var(--jl-btn-text);
-  border: 1px solid var(--jl-btn-border);
+  border: var(--jl-btn-border-width, 1px) solid var(--jl-btn-border);
   border-radius: var(--jl-radius);
   box-shadow: var(--jl-btn-shadow);
 }
@@ -188,7 +188,7 @@ body {
 .jl-disclosure[open] {
   background: var(--jl-btn-bg);
   color: var(--jl-btn-text);
-  border: 1px solid var(--jl-btn-border);
+  border: var(--jl-btn-border-width, 1px) solid var(--jl-btn-border);
   border-radius: min(var(--jl-radius), 1.75rem);
   box-shadow: var(--jl-btn-shadow);
   overflow: hidden;

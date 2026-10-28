@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import type { SaveThemeState } from "@/actions/themes";
 import { removeThemeBackground, uploadThemeBackground } from "@/actions/uploads";
-import { BUTTON_STYLES, FONTS, RADII, type ThemeTokens } from "@/lib/themes";
+import { BUTTON_STYLES, FONTS, RADII, SHADOWS, type ThemeTokens } from "@/lib/themes";
 import type { StudioTheme } from "./ThemeStudio";
 
 type Draft = { name: string; tokens: ThemeTokens };
@@ -18,6 +18,7 @@ const COLOURS: { key: keyof ThemeTokens & ("background" | "text" | "muted" | "bu
 
 const LABELS = {
   buttonStyle: { solid: "Solid", outline: "Outline", glass: "Glass" },
+  shadow: { flat: "None", soft: "Soft", hard: "3D" },
   radius: { none: "Square", small: "Soft", medium: "Rounded", pill: "Pill" },
   font: { sans: "Sans", serif: "Serif", mono: "Mono", rounded: "Rounded" },
 } as const;
@@ -113,6 +114,7 @@ export function ThemeBuilder({
         </div>
 
         <Select id="buttonStyle" label="Button style" value={draft.tokens.buttonStyle} options={BUTTON_STYLES} labels={LABELS.buttonStyle} onChange={(v) => setToken("buttonStyle", v)} />
+        <Select id="shadow" label="Shadow" value={draft.tokens.shadow ?? "soft"} options={SHADOWS} labels={LABELS.shadow} onChange={(v) => setToken("shadow", v)} />
         <Select id="radius" label="Corners" value={draft.tokens.radius} options={Object.keys(RADII) as (keyof typeof RADII)[]} labels={LABELS.radius} onChange={(v) => setToken("radius", v)} />
         <Select id="font" label="Font" value={draft.tokens.font} options={Object.keys(FONTS) as (keyof typeof FONTS)[]} labels={LABELS.font} onChange={(v) => setToken("font", v)} />
 

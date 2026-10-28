@@ -20,10 +20,15 @@ export const FONTS = {
 } as const;
 
 export const BUTTON_STYLES = ["solid", "outline", "glass"] as const;
+/** Depth of the link buttons: none, the light drop shadow, or a dark outline with an offset hard shadow. */
+export const SHADOWS = ["flat", "soft", "hard"] as const;
+/** The outline and offset shadow of "hard" buttons: near-black reads on light and dark themes alike. */
+const HARD_INK = "#111111";
 
 export type Radius = keyof typeof RADII;
 export type Font = keyof typeof FONTS;
 export type ButtonStyle = (typeof BUTTON_STYLES)[number];
+export type Shadow = (typeof SHADOWS)[number];
 
 export type ThemeTokens = {
   /** Page background colour (#rrggbb). */
@@ -38,6 +43,8 @@ export type ThemeTokens = {
   button: string;
   buttonText: string;
   buttonStyle: ButtonStyle;
+  /** Missing on themes saved before it existed: those keep the look they had, "soft". */
+  shadow?: Shadow;
   radius: Radius;
   font: Font;
   /** Darkening (0 to 90 percent) laid over a background image to keep text readable. */
@@ -128,6 +135,23 @@ export const PRESETS: readonly Preset[] = [
       overlay: 50,
     },
   },
+  {
+    id: "mint-pop",
+    name: "Mint Pop",
+    tokens: {
+      background: "#5b3a55",
+      backgroundEnd: "#7a4f70",
+      text: "#fdf2f8",
+      muted: "#f5d0fe",
+      button: "#d9fff4",
+      buttonText: "#312e81",
+      buttonStyle: "solid",
+      shadow: "hard",
+      radius: "pill",
+      font: "serif",
+      overlay: 20,
+    },
+  },
 ];
 
 export const DEFAULT_PRESET = PRESETS[0];
@@ -181,13 +205,19 @@ export function themeStyle(tokens: ThemeTokens, backgroundImageUrl: string | nul
     outline: { bg: "transparent", border: tokens.button, shadow: "none" },
     glass: { bg: withAlpha(tokens.button, 0.12), border: withAlpha(tokens.button, 0.3), shadow: "none" },
   }[tokens.buttonStyle];
+  const shadow = tokens.shadow ?? "soft";
+  const depth =
+    shadow === "hard"
+      ? { border: HARD_INK, width: "2px", shadow: `4px 4px 0 ${HARD_INK}` }
+      : { border: button.border, width: "1px", shadow: shadow === "flat" ? "none" : button.shadow };
   return {
     "--jl-bg": background,
     "--jl-text": tokens.text,
     "--jl-muted": tokens.muted,
     "--jl-btn-bg": button.bg,
-    "--jl-btn-border": button.border,
-    "--jl-btn-shadow": button.shadow,
+    "--jl-btn-border": depth.border,
+    "--jl-btn-border-width": depth.width,
+    "--jl-btn-shadow": depth.shadow,
     "--jl-btn-text": tokens.buttonText,
     "--jl-radius": RADII[tokens.radius],
     "--jl-font": FONTS[tokens.font],

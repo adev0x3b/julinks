@@ -32,6 +32,20 @@ describe("themeStyle", () => {
     );
   });
 
+  it("maps shadows: soft for themes saved before the option, none, or a 3D outline with a hard shadow", () => {
+    const tokens = { ...DEFAULT_PRESET.tokens, buttonStyle: "solid" as const };
+    const old = themeStyle(tokens);
+    expect(old["--jl-btn-shadow"]).toBe("0 1px 2px rgba(0,0,0,0.12)");
+    expect(old["--jl-btn-border-width"]).toBe("1px");
+    expect(themeStyle({ ...tokens, shadow: "flat" })["--jl-btn-shadow"]).toBe("none");
+    const hard = themeStyle({ ...tokens, shadow: "hard" });
+    expect(hard["--jl-btn-shadow"]).toBe("4px 4px 0 #111111");
+    expect(hard["--jl-btn-border"]).toBe("#111111");
+    expect(hard["--jl-btn-border-width"]).toBe("2px");
+    expect(themeTokensSchema.parse({ ...tokens, shadow: undefined }).shadow).toBe("soft");
+    expect(themeTokensSchema.safeParse({ ...tokens, shadow: "huge" }).success).toBe(false);
+  });
+
   it("maps button styles", () => {
     const tokens = { ...DEFAULT_PRESET.tokens, button: "#ff0000" };
     expect(themeStyle({ ...tokens, buttonStyle: "solid" })["--jl-btn-bg"]).toBe("#ff0000");

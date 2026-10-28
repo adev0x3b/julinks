@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ROLES } from "@/lib/roles";
 import { MAX_SOCIALS, SOCIAL_PLATFORM_IDS, SOCIAL_PLATFORMS } from "@/lib/socials";
-import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII } from "@/lib/themes";
+import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII, SHADOWS } from "@/lib/themes";
 
 // Zod would otherwise probe `new Function("")` once in the browser to pick a faster parser; the
 // Content Security Policy (next.config.ts) has no 'unsafe-eval', so skip the probe instead of logging a violation.
@@ -148,6 +148,7 @@ export const themeTokensSchema = z.strictObject({
   button: colour,
   buttonText: colour,
   buttonStyle: z.enum(BUTTON_STYLES),
+  shadow: z.enum(SHADOWS).default("soft"),
   radius: z.enum(Object.keys(RADII) as [keyof typeof RADII, ...(keyof typeof RADII)[]]),
   font: z.enum(Object.keys(FONTS) as [keyof typeof FONTS, ...(keyof typeof FONTS)[]]),
   overlay: z.coerce.number().int().min(0).max(90),

@@ -42,7 +42,8 @@ Live at [links.juume.site](https://links.juume.site).
 - **Pictures** for links and the avatar: upload one, or grab the link's own `og:image` (or, failing that, the site's icon). Pick the focal point and zoom in up to 3×, show it small beside the title or big like a card.
 - **Folders**, open as a headed section or collapsed as a row that expands on tap.
 - **Bio and social icons** for 24 platforms. Type a handle, the app builds the URL.
-- **Themes**: five presets, every colour, gradient, button style, radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.
+- **Themes**: six presets, every colour, gradient, button style, shadow (none, soft or a 3D outline), radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.
+- **Sharing**: a Share button for the page and a ⋮ menu on each link that shares or copies it. On a computer the page sits in a phone-width card.
 - **Stats**: totals, a 30-day chart, clicks per link, top referrers.
 - **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the requester confirms their email first, the admins get an email about new requests and the requester one about the decision.
 - **Password reset** by mail, with a one-use link.

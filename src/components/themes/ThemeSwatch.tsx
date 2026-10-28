@@ -11,7 +11,12 @@ export function ThemeSwatch({ tokens, backgroundUrl }: { tokens: ThemeTokens; ba
     <span className="grid size-12 shrink-0 place-items-center rounded-lg border border-black/10" style={{ background }} aria-hidden>
       <span
         className="block h-2.5 w-8"
-        style={{ background: button, border: `1px solid ${tokens.buttonStyle === "solid" ? "transparent" : tokens.button}`, borderRadius: RADII[tokens.radius] }}
+        style={{
+          background: button,
+          border: tokens.shadow === "hard" ? "1px solid #111" : `1px solid ${tokens.buttonStyle === "solid" ? "transparent" : tokens.button}`,
+          borderRadius: RADII[tokens.radius],
+          boxShadow: tokens.shadow === "hard" ? "2px 2px 0 #111" : undefined,
+        }}
       />
     </span>
   );
