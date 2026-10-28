@@ -24,7 +24,7 @@ export default async function AppearancePage({ searchParams }: PageProps<"/dashb
         displayName: user.displayName,
         bio: user.bio,
         avatarUrl: imageUrl(user.avatarKey),
-        avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
+        avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY, zoom: user.avatarZoom },
         socials: socials.map((s) => ({ platform: s.platform, url: s.url })),
         folders: folders.map((f) => ({ id: f.id, title: f.title, collapsed: f.collapsed })),
       }}
@@ -36,7 +36,7 @@ export default async function AppearancePage({ searchParams }: PageProps<"/dashb
           url: l.url,
           thumbnailUrl: imageUrl(l.thumbnailKey),
           imageLayout: l.imageLayout,
-          imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
+          imageFocus: { x: l.imageFocusX, y: l.imageFocusY, zoom: l.imageZoom },
           folderId: l.folderId,
         }))}
       themes={themes.map((t) => ({

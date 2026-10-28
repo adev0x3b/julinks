@@ -30,6 +30,7 @@ export async function listLinks(userId: string) {
       imageLayout: true,
       imageFocusX: true,
       imageFocusY: true,
+      imageZoom: true,
       folderId: true,
       _count: { select: { clicks: true } },
     },
@@ -70,7 +71,7 @@ export async function setLinkThumbnail(userId: string, linkId: string, thumbnail
   return prisma.$transaction(async (tx) => {
     const current = await tx.link.findFirst({ where: { id: linkId, userId }, select: { thumbnailKey: true } });
     if (!current) throw new NotFound();
-    await tx.link.update({ where: { id: linkId }, data: { thumbnailKey, imageFocusX: 50, imageFocusY: 50 } });
+    await tx.link.update({ where: { id: linkId }, data: { thumbnailKey, imageFocusX: 50, imageFocusY: 50, imageZoom: 100 } });
     return current.thumbnailKey;
   });
 }
@@ -79,7 +80,7 @@ export async function setLinkThumbnail(userId: string, linkId: string, thumbnail
 export async function setLinkImage(userId: string, linkId: string, input: { layout: ImageLayout; focus: ImageFocus }) {
   const result = await prisma.link.updateMany({
     where: { id: linkId, userId },
-    data: { imageLayout: input.layout, imageFocusX: input.focus.x, imageFocusY: input.focus.y },
+    data: { imageLayout: input.layout, imageFocusX: input.focus.x, imageFocusY: input.focus.y, imageZoom: input.focus.zoom },
   });
   if (result.count === 0) throw new NotFound();
 }

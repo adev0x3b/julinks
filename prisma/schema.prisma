@@ -20,6 +20,8 @@ model User {
   /// Focal point of the avatar inside its circle, in percent of the picture (50/50 = centre).
   avatarFocusX Int      @default(50)
   avatarFocusY Int      @default(50)
+  /// Zoom around the focal point, in percent (100 = the picture just covers the circle).
+  avatarZoom   Int      @default(100)
   /// The theme shown on the public page; null falls back to the default preset.
   themeId      String?
   /// Sign-ups are requests: an admin or moderator approves or denies them before the account can log in.
@@ -86,6 +88,8 @@ model Link {
   /// Focal point of the picture inside its frame, in percent (50/50 = centre).
   imageFocusX  Int      @default(50)
   imageFocusY  Int      @default(50)
+  /// Zoom around the focal point, in percent (100 = the picture just covers its frame).
+  imageZoom    Int      @default(100)
   /// The folder this link sits in on the public page; null means the top-level list.
   folderId  String?
   createdAt DateTime @default(now())

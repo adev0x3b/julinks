@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CENTRE, PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
+import { CENTRE, focusStyle, PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
 import { getPreset } from "@/lib/themes";
 
 const sunrise = getPreset("sunrise")!;
@@ -22,7 +22,7 @@ const profile: PublicProfileData = {
       url: "https://example.com/letters",
       thumbnailUrl: "/img/thumbnails/u/000000000000000000000000.webp",
       imageLayout: "thumbnail",
-      imageFocus: { x: 20, y: 80 },
+      imageFocus: { x: 20, y: 80, zoom: 100 },
       folderId: null,
     },
   ],
@@ -57,7 +57,7 @@ describe("PublicProfile", () => {
     const { container, rerender } = render(<PublicProfile profile={profile} />);
     expect(container.querySelector(".jl-avatar")).toHaveTextContent("AL");
     rerender(<PublicProfile profile={{ ...profile, avatarUrl: "/img/avatars/u/000000000000000000000000.webp" }} />);
-    expect(container.querySelector("img.jl-avatar")).toHaveAttribute("src", "/img/avatars/u/000000000000000000000000.webp");
+    expect(container.querySelector(".jl-avatar img")).toHaveAttribute("src", "/img/avatars/u/000000000000000000000000.webp");
   });
 
   it("puts a link's picture inside its button, centred on the focal point", () => {
@@ -76,16 +76,34 @@ describe("PublicProfile", () => {
     const letters = screen.getByRole("link", { name: "Letters" });
     expect(letters).toHaveAttribute("data-layout", "featured");
     const img = letters.querySelector("img")!;
-    expect(img.className).toContain("w-full");
+    expect(img.parentElement!.className).toContain("w-full");
     expect(img.style.objectPosition).toBe("20% 80%");
-    expect(img.nextElementSibling).toHaveTextContent("Letters");
+    expect(img.parentElement!.nextElementSibling).toHaveTextContent("Letters");
   });
 
   it("centres the avatar on its focal point", () => {
     const { container } = render(
-      <PublicProfile profile={{ ...profile, avatarUrl: "/img/avatars/u/000000000000000000000000.webp", avatarFocus: { x: 10, y: 0 } }} />,
+      <PublicProfile profile={{ ...profile, avatarUrl: "/img/avatars/u/000000000000000000000000.webp", avatarFocus: { x: 10, y: 0, zoom: 100 } }} />,
     );
-    expect((container.querySelector("img.jl-avatar") as HTMLElement).style.objectPosition).toBe("10% 0%");
+    const img = container.querySelector(".jl-avatar img") as HTMLElement;
+    expect(img.style.objectPosition).toBe("10% 0%");
+    expect(img.style.transform).toBe("");
+  });
+
+  it("zooms the avatar in around its focal point, inside a frame that clips", () => {
+    const { container } = render(
+      <PublicProfile profile={{ ...profile, avatarUrl: "/img/avatars/u/000000000000000000000000.webp", avatarFocus: { x: 50, y: 30, zoom: 200 } }} />,
+    );
+    const img = container.querySelector(".jl-avatar img") as HTMLElement;
+    expect(img.style.transform).toBe("scale(2)");
+    expect(img.style.transformOrigin).toBe("50.00% 10.00%");
+    expect(img.parentElement!.className).toContain("overflow-hidden");
+  });
+
+  it("keeps a zoomed window inside the picture when the point is near an edge", () => {
+    // At 2x the window is half the frame: a point at the very edge pins the window to that edge.
+    expect(focusStyle({ x: 0, y: 100, zoom: 200 }).transformOrigin).toBe("0.00% 100.00%");
+    expect(focusStyle({ x: 50, y: 50, zoom: 100 })).toEqual({ objectPosition: "50% 50%" });
   });
 
   it("keeps the bio's line breaks, so emoji can sit on their own row", () => {

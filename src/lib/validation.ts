@@ -165,9 +165,11 @@ export type ImageKind = "avatar" | "thumbnail" | "background";
 /** How a link's picture shows on the page, and where its focal point sits (percent of the picture). */
 const IMAGE_LAYOUTS = ["thumbnail", "featured"] as const;
 export type ImageLayout = (typeof IMAGE_LAYOUTS)[number];
-export type ImageFocus = { x: number; y: number };
+/** The focal point in percent of the picture, and a zoom around it in percent (100 = just covers the frame). */
+export type ImageFocus = { x: number; y: number; zoom: number };
+export const MAX_ZOOM = 300;
 const focusCoordinate = z.coerce.number().int().min(0).max(100);
-export const imageFocusSchema = z.object({ x: focusCoordinate, y: focusCoordinate });
+export const imageFocusSchema = z.object({ x: focusCoordinate, y: focusCoordinate, zoom: z.coerce.number().int().min(100).max(MAX_ZOOM).default(100) });
 export const linkImageSchema = z.object({ layout: z.enum(IMAGE_LAYOUTS), focus: imageFocusSchema });
 
 export const reorderSchema = z.array(z.string().min(1)).min(1).max(200);

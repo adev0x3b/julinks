@@ -55,15 +55,15 @@ describe("links", () => {
     const user = await makeUser();
     const link = await createLink(user.id, { title: "Pic", url: "https://a.example" });
     await setLinkThumbnail(user.id, link.id, "thumbnails/u/000000000000000000000000.webp");
-    await setLinkImage(user.id, link.id, { layout: "featured", focus: { x: 20, y: 80 } });
+    await setLinkImage(user.id, link.id, { layout: "featured", focus: { x: 20, y: 80, zoom: 180 } });
     let [stored] = await listLinks(user.id);
-    expect(stored).toMatchObject({ imageLayout: "featured", imageFocusX: 20, imageFocusY: 80 });
+    expect(stored).toMatchObject({ imageLayout: "featured", imageFocusX: 20, imageFocusY: 80, imageZoom: 180 });
 
     await setLinkThumbnail(user.id, link.id, "thumbnails/u/111111111111111111111111.webp");
     [stored] = await listLinks(user.id);
-    expect(stored).toMatchObject({ imageLayout: "featured", imageFocusX: 50, imageFocusY: 50 });
+    expect(stored).toMatchObject({ imageLayout: "featured", imageFocusX: 50, imageFocusY: 50, imageZoom: 100 });
 
     const intruder = await makeUser();
-    await expect(setLinkImage(intruder.id, link.id, { layout: "thumbnail", focus: { x: 50, y: 50 } })).rejects.toBeInstanceOf(NotFound);
+    await expect(setLinkImage(intruder.id, link.id, { layout: "thumbnail", focus: { x: 50, y: 50, zoom: 100 } })).rejects.toBeInstanceOf(NotFound);
   });
 });

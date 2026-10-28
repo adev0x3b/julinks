@@ -127,16 +127,16 @@ describe("getPublicProfile", () => {
     await updateLink(user.id, hidden.id, { enabled: false });
     await updateProfile(user.id, { displayName: "Ada", bio: "Hi" });
     await setAvatar(user.id, "avatars/u/000000000000000000000000.webp");
-    await setAvatarFocus(user.id, { x: 10, y: 90 });
+    await setAvatarFocus(user.id, { x: 10, y: 90, zoom: 250 });
 
-    const centred = { imageLayout: "thumbnail", imageFocus: { x: 50, y: 50 } };
+    const centred = { imageLayout: "thumbnail", imageFocus: { x: 50, y: 50, zoom: 100 } };
     const profile = await getPublicProfile("ada");
     expect(profile).toEqual({
       username: "ada",
       displayName: "Ada",
       bio: "Hi",
       avatarUrl: "/img/avatars/u/000000000000000000000000.webp",
-      avatarFocus: { x: 10, y: 90 },
+      avatarFocus: { x: 10, y: 90, zoom: 250 },
       theme: { name: DEFAULT_PRESET.name, tokens: DEFAULT_PRESET.tokens, backgroundUrl: null },
       socials: [],
       folders: [],
@@ -150,9 +150,9 @@ describe("getPublicProfile", () => {
     await makeUser({ username: "waiting" }, { status: "pending" });
     expect(await getPublicProfile("waiting")).toBeNull();
 
-    // A new avatar starts centred again.
+    // A new avatar starts centred and unzoomed again.
     await setAvatar(user.id, "avatars/u/111111111111111111111111.webp");
-    expect((await getPublicProfile("ada"))?.avatarFocus).toEqual({ x: 50, y: 50 });
+    expect((await getPublicProfile("ada"))?.avatarFocus).toEqual({ x: 50, y: 50, zoom: 100 });
   });
 });
 

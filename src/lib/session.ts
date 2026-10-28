@@ -107,6 +107,7 @@ export type CurrentUser = {
   avatarKey: string | null;
   avatarFocusX: number;
   avatarFocusY: number;
+  avatarZoom: number;
   themeId: string | null;
   role: Role;
 };
@@ -124,7 +125,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   // changed since the token was issued, is treated like a stale cookie.
   const user = await prisma.user.findFirst({
     where: { id: claims.userId, status: "approved", sessionVersion: claims.version },
-    select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, avatarFocusX: true, avatarFocusY: true, themeId: true, role: true },
+    select: { id: true, username: true, email: true, displayName: true, bio: true, avatarKey: true, avatarFocusX: true, avatarFocusY: true, avatarZoom: true, themeId: true, role: true },
   });
   return user;
 });

@@ -18,7 +18,7 @@ export default async function DashboardPage() {
         displayName: user.displayName,
         bio: user.bio,
         avatarUrl: imageUrl(user.avatarKey),
-        avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY },
+        avatarFocus: { x: user.avatarFocusX, y: user.avatarFocusY, zoom: user.avatarZoom },
         socials: socials.map(({ platform, value }) => ({ platform, value })),
       }}
       folders={folders}
@@ -31,7 +31,7 @@ export default async function DashboardPage() {
         clicks: l._count.clicks,
         thumbnailUrl: imageUrl(l.thumbnailKey),
         imageLayout: l.imageLayout,
-        imageFocus: { x: l.imageFocusX, y: l.imageFocusY },
+        imageFocus: { x: l.imageFocusX, y: l.imageFocusY, zoom: l.imageZoom },
         folderId: l.folderId,
       }))}
     />

@@ -39,7 +39,7 @@ Live at [links.juume.site](https://links.juume.site).
 ## Features
 
 - **Links** with drag-and-drop ordering, on/off switches and a live phone-sized preview.
-- **Pictures** for links and the avatar: upload one, or grab the link's own `og:image`. Pick the focal point, show it small beside the title or big like a card.
+- **Pictures** for links and the avatar: upload one, or grab the link's own `og:image`. Pick the focal point and zoom in up to 3×, show it small beside the title or big like a card.
 - **Folders**, open as a headed section or collapsed as a row that expands on tap.
 - **Bio and social icons** for 24 platforms. Type a handle, the app builds the URL.
 - **Themes**: five presets, every colour, gradient, button style, radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.

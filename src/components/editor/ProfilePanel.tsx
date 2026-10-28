@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { saveProfile, type ProfileFormState } from "@/actions/profile";
 import { Field } from "@/components/Field";
+import { CENTRE } from "@/components/PublicProfile";
 import { AvatarUploader } from "./AvatarUploader";
 import { SocialsEditor, type SocialDraft } from "./SocialsEditor";
 import { MAX_BIO_LINES, type ImageFocus } from "@/lib/validation";
@@ -43,7 +44,7 @@ export function ProfilePanel({
           avatarUrl={draft.avatarUrl}
           focus={draft.avatarFocus}
           initials={initials}
-          onChanged={(avatarUrl) => onChange({ ...draft, avatarUrl, avatarFocus: { x: 50, y: 50 } })}
+          onChanged={(avatarUrl) => onChange({ ...draft, avatarUrl, avatarFocus: CENTRE })}
           onFocusChanged={(avatarFocus) => onChange({ ...draft, avatarFocus })}
         />
       </div>

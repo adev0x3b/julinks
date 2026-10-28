@@ -75,16 +75,7 @@ export function PublicProfile({
       data-theme={theme.name}
     >
       {profile.avatarUrl ? (
-        // Already resized and re-encoded on upload; the optimiser would only add a hop.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={profile.avatarUrl}
-          alt=""
-          width={80}
-          height={80}
-          className="jl-avatar size-20 rounded-full object-cover"
-          style={{ objectPosition: focusPosition(profile.avatarFocus) }}
-        />
+        <FramedImage src={profile.avatarUrl} focus={profile.avatarFocus} className="jl-avatar size-20 rounded-full" />
       ) : (
         <div
           className="jl-avatar grid size-20 place-items-center rounded-full text-2xl font-semibold"
@@ -198,12 +189,11 @@ function LinkButton({ link, preview }: { link: PublicLink; preview: boolean }) {
                 data-link-id={link.id}
                 data-layout="featured"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <FramedImage
                   src={link.thumbnailUrl}
-                  alt=""
-                  className="aspect-[16/10] w-full object-cover"
-                  style={{ objectPosition: focusPosition(link.imageFocus), borderRadius: "max(0px, min(calc(var(--jl-radius) - 0.5rem), 0.75rem))" }}
+                  focus={link.imageFocus}
+                  className="aspect-[16/10] w-full"
+                  style={{ borderRadius: "max(0px, min(calc(var(--jl-radius) - 0.5rem), 0.75rem))" }}
                 />
                 <span className="px-4">{link.title}</span>
               </a>
@@ -216,14 +206,10 @@ function LinkButton({ link, preview }: { link: PublicLink; preview: boolean }) {
                 data-layout="thumbnail"
               >
                 {link.thumbnailUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <FramedImage
                     src={link.thumbnailUrl}
-                    alt=""
-                    width={32}
-                    height={32}
-                    className="absolute left-2 top-1/2 size-8 -translate-y-1/2 rounded-[calc(var(--jl-radius)/2)] object-cover"
-                    style={{ objectPosition: focusPosition(link.imageFocus) }}
+                    focus={link.imageFocus}
+                    className="absolute left-2 top-1/2 size-8 -translate-y-1/2 rounded-[calc(var(--jl-radius)/2)]"
                   />
                 )}
                 {link.title}
@@ -231,11 +217,56 @@ function LinkButton({ link, preview }: { link: PublicLink; preview: boolean }) {
             );
 }
 
-export const CENTRE: ImageFocus = { x: 50, y: 50 };
+export const CENTRE: ImageFocus = { x: 50, y: 50, zoom: 100 };
 
-/** The focal point as a CSS object-position value. */
-export function focusPosition(focus: ImageFocus): string {
-  return `${focus.x}% ${focus.y}%`;
+/**
+ * How a picture sits in its frame. object-fit: cover with the focal point as object-position
+ * puts that point of the picture at the same point of the frame. A zoom then scales the
+ * picture around the frame point that keeps the focal point as close to the middle as the
+ * picture's edges allow: the visible window, 1/s of the frame wide, is centred on the point
+ * and slid back inside the picture, and the scale origin is the one that maps it onto the frame.
+ * The frame must clip (see FramedImage).
+ */
+export function focusStyle(focus: ImageFocus): React.CSSProperties {
+  const position = { objectPosition: `${focus.x}% ${focus.y}%` };
+  const s = focus.zoom / 100;
+  if (s <= 1) return position;
+  const origin = (point: number) => {
+    const centre = Math.min(100 - 50 / s, Math.max(50 / s, point));
+    return ((s * centre - 50) / (s - 1)).toFixed(2);
+  };
+  return { ...position, transform: `scale(${s})`, transformOrigin: `${origin(focus.x)}% ${origin(focus.y)}%` };
+}
+
+/**
+ * A picture cropped into its frame around the focal point and zoom. The frame (className and
+ * style: size, shape, border) clips; the picture fills it. A span so it can sit inside links;
+ * testId goes on the picture itself.
+ */
+export function FramedImage({
+  src,
+  focus,
+  className = "",
+  style,
+  imgClassName = "",
+  testId,
+  alt = "",
+}: {
+  src: string;
+  focus: ImageFocus;
+  className?: string;
+  style?: React.CSSProperties;
+  imgClassName?: string;
+  testId?: string;
+  alt?: string;
+}) {
+  return (
+    <span className={`block overflow-hidden ${className}`} style={style}>
+      {/* Already resized and re-encoded on upload; the optimiser would only add a hop. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt={alt} className={`block size-full object-cover ${imgClassName}`} style={focusStyle(focus)} draggable={false} data-testid={testId} />
+    </span>
+  );
 }
 
 /** A stand-in profile for showing a theme on its own (gallery cards, preset chips). */

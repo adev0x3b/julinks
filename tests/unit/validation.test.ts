@@ -159,7 +159,8 @@ describe("reserved usernames", () => {
 
 describe("link picture settings", () => {
   it("accepts a layout with a focal point in percent", () => {
-    expect(linkImageSchema.parse({ layout: "featured", focus: { x: "30", y: 70 } })).toEqual({ layout: "featured", focus: { x: 30, y: 70 } });
+    expect(linkImageSchema.parse({ layout: "featured", focus: { x: "30", y: 70 } })).toEqual({ layout: "featured", focus: { x: 30, y: 70, zoom: 100 } });
+    expect(imageFocusSchema.parse({ x: 30, y: 70, zoom: "250" })).toEqual({ x: 30, y: 70, zoom: 250 });
   });
 
   it("rejects unknown layouts and points outside the picture", () => {
@@ -167,5 +168,8 @@ describe("link picture settings", () => {
     expect(imageFocusSchema.safeParse({ x: 101, y: 50 }).success).toBe(false);
     expect(imageFocusSchema.safeParse({ x: 10.5, y: 50 }).success).toBe(false);
     expect(imageFocusSchema.safeParse({ x: -1, y: 50 }).success).toBe(false);
+    // Zoom only goes in, up to 3x.
+    expect(imageFocusSchema.safeParse({ x: 50, y: 50, zoom: 90 }).success).toBe(false);
+    expect(imageFocusSchema.safeParse({ x: 50, y: 50, zoom: 301 }).success).toBe(false);
   });
 });

@@ -274,6 +274,10 @@ test("pictures: avatar and link pictures are stored, served, laid out and centre
   const avatarBox = (await avatarArea.boundingBox())!;
   await avatarArea.click({ position: { x: avatarBox.width * 0.1, y: avatarBox.height * 0.2 } });
   await expect(avatar).toHaveCSS("object-position", "10% 20%");
+  // Zoom in around that point: the picture scales inside its round frame.
+  await page.getByTestId("avatar-adjust").getByLabel(/^Zoom of/).fill("200");
+  await expect(page.getByTestId("avatar-adjust").getByText("2.0×")).toBeVisible();
+  await expect(avatar).toHaveCSS("transform", "matrix(2, 0, 0, 2, 0, 0)");
   await expect(page.getByTestId("avatar-adjust").getByRole("status")).toHaveText("Saved");
   await page.getByRole("button", { name: "Done" }).click();
 
@@ -293,8 +297,11 @@ test("pictures: avatar and link pictures are stored, served, laid out and centre
   await expect(panel.getByRole("status")).toHaveText("Saved");
 
   await page.goto(`/${user.username}`);
-  await expect(page.locator("img.jl-avatar")).toHaveAttribute("src", avatarSrc);
-  await expect(page.locator("img.jl-avatar")).toHaveCSS("object-position", "10% 20%");
+  const publicAvatar = page.locator(".jl-avatar img");
+  await expect(publicAvatar).toHaveAttribute("src", avatarSrc);
+  await expect(publicAvatar).toHaveCSS("object-position", "10% 20%");
+  await expect(publicAvatar).toHaveCSS("transform", "matrix(2, 0, 0, 2, 0, 0)");
+  await expect(page.locator(".jl-avatar")).toHaveCSS("overflow", "hidden");
   const blog = page.getByRole("link", { name: "My new blog" });
   await expect(blog).toHaveAttribute("data-layout", "featured");
   await expect(blog.locator("img")).toHaveAttribute("src", /^\/img\/thumbnails\//);
@@ -305,7 +312,7 @@ test("pictures: avatar and link pictures are stored, served, laid out and centre
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await expect(page.getByTestId("avatar-image")).toHaveCount(0);
   await page.goto(`/${user.username}`);
-  await expect(page.locator("img.jl-avatar")).toHaveCount(0);
+  await expect(page.locator(".jl-avatar img")).toHaveCount(0);
 
   // Unknown or malformed keys are 404s, never errors.
   expect((await page.request.get("/img/avatars/x/000000000000000000000000.webp")).status()).toBe(404);

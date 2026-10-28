@@ -26,7 +26,7 @@ import {
   setLinkImage,
 } from "@/actions/links";
 import { grabLinkPreview, removeLinkThumbnail, uploadLinkThumbnail } from "@/actions/uploads";
-import { focusPosition } from "@/components/PublicProfile";
+import { CENTRE, FramedImage } from "@/components/PublicProfile";
 import type { Folder } from "@/lib/data/folders";
 import { moveItem } from "@/lib/reorder";
 import type { ImageFocus, ImageLayout } from "@/lib/validation";
@@ -226,7 +226,8 @@ function LinkRow({
       className={`rounded-xl border border-stone-200 bg-white p-3 ${isDragging ? "shadow-lg ring-2 ring-brand-100" : ""}`}
       data-testid="link-row"
     >
-      <div className="flex items-center gap-3">
+      {/* On a phone the controls drop to a line of their own, so the title keeps its room. */}
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           className="cursor-grab touch-none rounded p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-700 active:cursor-grabbing"
@@ -287,7 +288,7 @@ function LinkRow({
             </button>
           </form>
         ) : (
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 basis-32">
             <p
               className={`truncate text-sm font-medium ${link.enabled ? "" : "text-stone-400 line-through"}`}
             >
@@ -298,7 +299,7 @@ function LinkRow({
         )}
 
         {!editing && (
-          <>
+          <div className="flex w-full items-center justify-end gap-2 sm:ml-auto sm:w-auto sm:gap-3">
             <span
               className="hidden text-xs text-stone-400 sm:inline"
               title="Clicks"
@@ -307,7 +308,7 @@ function LinkRow({
             </span>
             {folders.length > 0 && (
               <select
-                className="input w-auto max-w-36 py-1.5 text-xs"
+                className="input min-w-0 flex-1 py-1.5 text-xs sm:w-auto sm:max-w-36 sm:flex-none"
                 value={link.folderId && folders.some((f) => f.id === link.folderId) ? link.folderId : ""}
                 onChange={(ev) => moveToFolder(ev.target.value || null)}
                 disabled={pending}
@@ -351,7 +352,7 @@ function LinkRow({
             >
               Delete
             </button>
-          </>
+          </div>
         )}
       </div>
       {pictureOpen && (
@@ -383,7 +384,7 @@ function usePictureUpload(
       if (result.ok) {
         onError(null);
         // A new picture starts centred, like the server records it.
-        onPatch({ thumbnailUrl: result.url, imageFocus: { x: 50, y: 50 } });
+        onPatch({ thumbnailUrl: result.url, imageFocus: CENTRE });
       } else {
         onError(result.error);
       }
@@ -435,14 +436,7 @@ function PictureButton({
         onClick={onToggle}
       >
         {link.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={link.thumbnailUrl}
-            alt=""
-            className="size-full object-cover"
-            style={{ objectPosition: focusPosition(link.imageFocus) }}
-            data-testid="link-thumbnail"
-          />
+          <FramedImage src={link.thumbnailUrl} focus={link.imageFocus} className="size-full" testId="link-thumbnail" />
         ) : (
           <svg
             width="18"
@@ -513,7 +507,7 @@ function PicturePanel({
     startTransition(async () => {
       const result = await removeLinkThumbnail(link.id);
       if (result.ok) {
-        onPatch({ thumbnailUrl: null, imageFocus: { x: 50, y: 50 } });
+        onPatch({ thumbnailUrl: null, imageFocus: CENTRE });
         onClose();
       } else {
         onError(result.error);
@@ -527,7 +521,7 @@ function PicturePanel({
       const result = await grabLinkPreview(link.id);
       if (result.ok) {
         onError(null);
-        onPatch({ thumbnailUrl: result.url, imageFocus: { x: 50, y: 50 } });
+        onPatch({ thumbnailUrl: result.url, imageFocus: CENTRE });
       } else {
         setGrabError(result.error);
       }

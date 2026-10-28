@@ -3,14 +3,14 @@
 import { useRef, useState, useTransition } from "react";
 import { setAvatarFocus } from "@/actions/profile";
 import { removeAvatar, uploadAvatar } from "@/actions/uploads";
-import { focusPosition } from "@/components/PublicProfile";
+import { FramedImage } from "@/components/PublicProfile";
 import type { ImageFocus } from "@/lib/validation";
 import { FocalPointPicker, useDebouncedSave } from "./FocalPointPicker";
 
 /**
  * Avatar picker: choosing a file submits it straight away, the server resizes
  * and stores it, and the page refreshes with the new URL. "Adjust" opens the
- * focal point picker; its changes save on their own after a short pause.
+ * focal point and zoom picker; its changes save on their own after a short pause.
  */
 export function AvatarUploader({
   avatarUrl,
@@ -74,14 +74,7 @@ export function AvatarUploader({
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-4">
         {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatarUrl}
-            alt="Your avatar"
-            className="size-16 rounded-full object-cover"
-            style={{ objectPosition: focusPosition(focus) }}
-            data-testid="avatar-image"
-          />
+          <FramedImage src={avatarUrl} alt="Your avatar" focus={focus} className="size-16 shrink-0 rounded-full" testId="avatar-image" />
         ) : (
           <div
             className="grid size-16 place-items-center rounded-full bg-stone-200 text-xl font-semibold text-stone-600"
@@ -139,7 +132,7 @@ export function AvatarUploader({
         >
           <p className="mb-3 text-sm text-stone-600">
             Click the photo, or drag, to choose what sits in the middle of the
-            circle.
+            circle. Zoom in to fill it with your face.
           </p>
           <FocalPointPicker
             src={avatarUrl}

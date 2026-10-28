@@ -5,16 +5,16 @@ import {
   useRef,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { focusPosition } from "@/components/PublicProfile";
-import type { ImageFocus } from "@/lib/validation";
+import { FramedImage } from "@/components/PublicProfile";
+import { MAX_ZOOM, type ImageFocus } from "@/lib/validation";
 
 const clamp = (n: number) => Math.min(100, Math.max(0, Math.round(n)));
 
 /**
- * Picks where a picture is centred inside its frame. Click or drag on the
- * picture to move the point, or use the two sliders; the frame on the right
- * shows the result the way the public page crops it (object-fit: cover around
- * the focal point). Parents own the value and decide when to save it.
+ * Picks where a picture is centred inside its frame, and how far it is zoomed
+ * in around that point. Click or drag on the picture to move the point, or use
+ * the sliders; the frame on the right shows the result the way the public page
+ * crops it (see focusStyle). Parents own the value and decide when to save it.
  */
 export function FocalPointPicker({
   src,
@@ -38,6 +38,7 @@ export function FocalPointPicker({
     const box = areaRef.current?.getBoundingClientRect();
     if (!box) return;
     onChange({
+      ...focus,
       x: clamp(((ev.clientX - box.left) / box.width) * 100),
       y: clamp(((ev.clientY - box.top) / box.height) * 100),
     });
@@ -48,10 +49,10 @@ export function FocalPointPicker({
       className="flex flex-wrap items-start gap-4"
       data-testid="focal-point-picker"
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex w-56 max-w-full flex-col gap-2">
         <div
           ref={areaRef}
-          className="relative w-56 cursor-crosshair touch-none select-none overflow-hidden rounded-lg bg-stone-100"
+          className="relative w-full cursor-crosshair touch-none select-none overflow-hidden rounded-lg bg-stone-100"
           onPointerDown={(ev) => {
             dragging.current = true;
             ev.currentTarget.setPointerCapture(ev.pointerId);
@@ -81,8 +82,9 @@ export function FocalPointPicker({
             onChange={(ev) =>
               onChange({ ...focus, x: Number(ev.target.value) })
             }
-            className="flex-1"
+            className="min-w-0 flex-1"
           />
+          <span className="w-9 text-right tabular-nums">{focus.x}%</span>
         </label>
         <label className="flex items-center gap-2 text-xs text-stone-600">
           <span className="w-16">Vertical</span>
@@ -95,22 +97,39 @@ export function FocalPointPicker({
             onChange={(ev) =>
               onChange({ ...focus, y: Number(ev.target.value) })
             }
-            className="flex-1"
+            className="min-w-0 flex-1"
           />
+          <span className="w-9 text-right tabular-nums">{focus.y}%</span>
+        </label>
+        <label className="flex items-center gap-2 text-xs text-stone-600">
+          <span className="w-16">Zoom</span>
+          <input
+            type="range"
+            min={100}
+            max={MAX_ZOOM}
+            step={5}
+            value={focus.zoom}
+            aria-label={`Zoom of ${name}`}
+            onChange={(ev) =>
+              onChange({ ...focus, zoom: Number(ev.target.value) })
+            }
+            className="min-w-0 flex-1"
+          />
+          <span className="w-9 text-right tabular-nums">
+            {(focus.zoom / 100).toFixed(1)}×
+          </span>
         </label>
       </div>
       <div className="flex flex-col items-center gap-1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <FramedImage
           src={src}
-          alt=""
+          focus={focus}
           className={
             shape === "circle"
-              ? "size-20 rounded-full object-cover"
-              : "aspect-[16/10] w-40 rounded-xl object-cover"
+              ? "size-20 rounded-full"
+              : "aspect-[16/10] w-40 rounded-xl"
           }
-          style={{ objectPosition: focusPosition(focus) }}
-          data-testid="focal-point-preview"
+          testId="focal-point-preview"
         />
         <span className="text-xs text-stone-500">Preview</span>
       </div>
