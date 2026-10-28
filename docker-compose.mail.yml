@@ -1,0 +1,15 @@
+# Joins the web service to the Docker network of a mail relay running in its own compose
+# project on the same machine (JuMail calls its network "jumail"), so SMTP_HOST can name the
+# relay without publishing its port. Turn it on from .env, so plain `docker compose` commands
+# keep working:
+#
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.mail.yml
+#   MAIL_NETWORK=jumail
+services:
+  web:
+    networks: [default, mail]
+
+networks:
+  mail:
+    name: ${MAIL_NETWORK:-jumail}
+    external: true

@@ -1,10 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { DENIED_MESSAGE, PENDING_MESSAGE } from "@/lib/auth-messages";
 import { authenticate, createUser, RequestsFull, UniqueViolation } from "@/lib/data/users";
 import { demoLoginAllowed } from "@/lib/config";
 import { isSetupPending } from "@/lib/data/setup";
+import { notifyAdminsOfRequest } from "@/lib/mail/notices";
 import { accountLimiter, authLimiter, retryLater } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { createSession, destroySession } from "@/lib/session";
@@ -43,6 +45,8 @@ export async function signup(_prev: AuthFormState, formData: FormData): Promise<
   }
   try {
     const user = await createUser({ ...parsed.data, displayName: parsed.data.username });
+    // The admins hear about it by mail, after the response and at most every half hour.
+    after(() => notifyAdminsOfRequest());
     return { requested: { username: user.username } };
   } catch (error) {
     if (error instanceof UniqueViolation) {

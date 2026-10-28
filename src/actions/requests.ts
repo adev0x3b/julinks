@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath, updateTag } from "next/cache";
+import { after } from "next/server";
 import { profileTag } from "@/lib/cache-tags";
 import { RequestNotFound, ReviewForbidden, reviewRequest, type Decision } from "@/lib/data/requests";
+import { notifyDecision } from "@/lib/mail/notices";
 import { requireReviewer } from "@/lib/session";
 import { decisionSchema } from "@/lib/validation";
 
@@ -17,6 +19,8 @@ export async function reviewSignup(userId: unknown, input: unknown): Promise<Rev
     const account = await reviewRequest({ id: reviewer.id, role: reviewer.role }, userId, parsed.data as Decision);
     // Revoking an approved account takes its public page down; approving one makes it appear.
     updateTag(profileTag(account.username));
+    // The requester hears about it by mail, after the response (best effort, see sendMail).
+    after(() => notifyDecision(account, account.previousStatus, account.status));
   } catch (error) {
     if (error instanceof RequestNotFound) return { error: "That request no longer exists" };
     if (error instanceof ReviewForbidden) return { error: "You cannot take that decision" };

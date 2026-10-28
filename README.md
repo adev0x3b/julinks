@@ -44,7 +44,7 @@ Live at [links.juume.site](https://links.juume.site).
 - **Bio and social icons** for 24 platforms. Type a handle, the app builds the URL.
 - **Themes**: five presets, every colour, gradient, button style, radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.
 - **Stats**: totals, a 30-day chart, clicks per link, top referrers.
-- **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies.
+- **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the admins get an email about new requests and the requester one about the decision.
 - **First-run setup**: a fresh install serves nothing until the admin account is created with a one-time code printed by `docker compose up`.
 - **Dark mode** in the dashboard. Public pages take every colour from their theme.
 
@@ -76,6 +76,13 @@ Everything is read from `.env` (see [`.env.example`](.env.example) for the comme
 | `TRUST_PROXY` | unset | `cloudflare` behind a Cloudflare Tunnel, `1` behind nginx, Caddy or Traefik: keys rate limits on the visitor's address. |
 | `ALLOW_DEMO_LOGIN` | `1` | Set `0` on a public site so nobody logs in as the demo profiles. |
 | `S3_*` | the compose SeaweedFS | Any S3-compatible service works, AWS S3 and Cloudflare R2 included. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | unset, `587` | Mail through any SMTP server with STARTTLS. Unset means no mail; the app logs what it would have sent. |
+
+### Mail
+
+The admins get one email when a sign-up request arrives, and at most one more per half hour while others keep coming, so a burst of requests costs two messages. A requester gets one when their request is approved or declined, or their account closed; past ten of those an hour the rest are skipped and the requester finds out at login. A send that fails is logged and never blocks the sign-up or the review.
+
+If the relay runs in another compose project on the same machine, [`docker-compose.mail.yml`](docker-compose.mail.yml) joins its Docker network; turn it on with `COMPOSE_FILE` in `.env` (see [`.env.example`](.env.example)).
 
 ### Exposing it to the internet
 
@@ -124,7 +131,7 @@ More in [docs/security.md](docs/security.md).
 ## Limits
 
 - The rate limiter and the page cache live in process memory, which fits one container. Several replicas would need Redis and a shared cache handler.
-- No password reset or email of any kind: requesters find out at login whether they were approved.
+- No password reset and no email verification.
 - Images are streamed through the app, not from a CDN.
 
 ## Contributing
