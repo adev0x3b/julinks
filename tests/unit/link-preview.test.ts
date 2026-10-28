@@ -27,6 +27,17 @@ describe("extractPreviewImage", () => {
     expect(extractPreviewImage('<meta property="og:image" content="/a.png?x=1&amp;y=2">', page)).toBe("https://example.com/a.png?x=1&y=2");
   });
 
+  it("falls back to the site's icon last: apple-touch-icon, then the largest usable rel=icon", () => {
+    const page = "https://demo.example.com/";
+    // A Rails 8 head: no preview image, a PNG icon, an SVG icon and an apple-touch-icon.
+    const rails = '<link rel="icon" href="/icon.png" type="image/png"><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple.png">';
+    expect(extractPreviewImage(rails, page)).toBe("https://demo.example.com/apple.png");
+    expect(extractPreviewImage('<link rel="icon" sizes="16x16" href="/s.png"><link rel="icon" sizes="192x192" href="/l.png">', page)).toBe("https://demo.example.com/l.png");
+    expect(extractPreviewImage('<link rel="shortcut icon" href="/f.png"><meta property="og:image" content="/og.png">', page)).toBe("https://demo.example.com/og.png");
+    // Formats the upload cannot read are no use.
+    expect(extractPreviewImage('<link rel="icon" href="/favicon.ico"><link rel="icon" href="/i.svg"><link rel="icon" href="data:image/png;base64,AA">', page)).toBeNull();
+  });
+
   it("ignores pages without one and non-web schemes", () => {
     expect(extractPreviewImage("<html><head><title>x</title></head></html>", "https://example.com")).toBeNull();
     expect(extractPreviewImage('<meta property="og:image" content="javascript:alert(1)">', "https://example.com")).toBeNull();

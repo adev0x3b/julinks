@@ -179,14 +179,25 @@ function attribute(tag: string, name: string): string | null {
   return match ? (match[1] ?? match[2] ?? match[3] ?? "").trim() : null;
 }
 
+/** Icon formats the upload pipeline cannot decode (src/lib/images.ts takes PNG, JPEG, WebP and GIF only). */
+const UNUSABLE_ICON = /\.(svg|ico)(?:[?#]|$)|^data:/i;
+
+/** The largest edge a `sizes` attribute names ("180x180", "16x16 32x32"), 0 when it names none. */
+function iconSize(tag: string): number {
+  const sizes = (attribute(tag, "sizes") ?? "").match(/\d+(?=x\d+)/gi) ?? [];
+  return Math.max(0, ...sizes.map(Number));
+}
+
 /**
  * The preview image URL named by the page's head, in order of preference:
- * og:image(:secure_url), twitter:image, link rel="image_src". Relative URLs are
- * resolved against the page. Returns null when the page names none.
+ * og:image(:secure_url), twitter:image, link rel="image_src", and as a last
+ * resort the site's icon (apple-touch-icon, then rel="icon", largest first;
+ * SVG and .ico are skipped). Relative URLs are resolved against the page.
+ * Returns null when the page names none.
  */
 export function extractPreviewImage(html: string, pageUrl: string): string | null {
   const head = html.slice(0, MAX_HTML_BYTES);
-  const candidates: { rank: number; url: string }[] = [];
+  const candidates: { rank: number; size?: number; url: string }[] = [];
   const ranks: Record<string, number> = { "og:image:secure_url": 0, "og:image": 1, "og:image:url": 1, "twitter:image": 2, "twitter:image:src": 2 };
   for (const tag of head.match(META_TAG) ?? []) {
     const key = (attribute(tag, "property") ?? attribute(tag, "name") ?? "").toLowerCase();
@@ -196,9 +207,17 @@ export function extractPreviewImage(html: string, pageUrl: string): string | nul
   for (const tag of head.match(LINK_TAG) ?? []) {
     const rel = (attribute(tag, "rel") ?? "").toLowerCase().split(/\s+/);
     const href = attribute(tag, "href");
-    if (rel.includes("image_src") && href) candidates.push({ rank: 3, url: href });
+    if (!href) continue;
+    if (rel.includes("image_src")) {
+      candidates.push({ rank: 3, url: href });
+      continue;
+    }
+    const type = (attribute(tag, "type") ?? "").toLowerCase();
+    if (UNUSABLE_ICON.test(href) || type.includes("svg") || type.includes("icon")) continue;
+    if (rel.includes("apple-touch-icon") || rel.includes("apple-touch-icon-precomposed")) candidates.push({ rank: 4, size: iconSize(tag), url: href });
+    else if (rel.includes("icon")) candidates.push({ rank: 5, size: iconSize(tag), url: href });
   }
-  candidates.sort((a, b) => a.rank - b.rank);
+  candidates.sort((a, b) => a.rank - b.rank || (b.size ?? 0) - (a.size ?? 0));
   for (const candidate of candidates) {
     try {
       const resolved = new URL(decodeEntities(candidate.url), pageUrl);
