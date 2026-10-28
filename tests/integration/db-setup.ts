@@ -13,6 +13,7 @@ beforeEach(async () => {
   await prisma.user.deleteMany();
   await prisma.setupCode.deleteMany();
   await prisma.mailOutbox.deleteMany();
+  // password_resets go with their users.
 });
 
 afterAll(async () => {

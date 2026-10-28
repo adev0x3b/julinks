@@ -14,6 +14,15 @@ export type MailConfig = {
 
 export class MailConfigError extends Error {}
 
+/** Whether mail is set up and complete; a half configuration counts as off. */
+export function mailEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  try {
+    return mailConfig(env) !== null;
+  } catch {
+    return false;
+  }
+}
+
 /** Null when mail is off; throws MailConfigError when it is half configured. */
 export function mailConfig(env: Record<string, string | undefined> = process.env): MailConfig | null {
   const host = env.SMTP_HOST?.trim();

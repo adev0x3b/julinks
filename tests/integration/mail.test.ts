@@ -2,10 +2,12 @@ import type { AddressInfo } from "node:net";
 import { SMTPServer } from "smtp-server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/db";
+import { requestPasswordReset } from "@/lib/data/password-reset";
 import { reviewRequest } from "@/lib/data/requests";
 import { mailConfig } from "@/lib/mail/config";
 import {
   ADMIN_NOTICE_SPACING_MS,
+  RESET_MAIL,
   deleteQueuedMail,
   drainOutbox,
   outboxSummary,
@@ -260,5 +262,35 @@ describe("deleting waiting mail", () => {
     await queueAdminNotice();
     expect(await drainOutbox()).toBe(1);
     expect(received[0].raw).toContain("another");
+  });
+});
+
+describe("reset mails", () => {
+  it("go out ahead of older mail, and their link is wiped from the outbox once sent", async () => {
+    process.env.MAIL_HOURLY_LIMIT = "1";
+    await queueDecisionMail({ username: "kim", email: "kim@example.com" }, "pending", "denied");
+    await makeUser({ username: "june", email: "june@example.com" });
+    expect(await requestPasswordReset("june@example.com")).toBe("queued");
+
+    expect(await drainOutbox()).toBe(1);
+    expect(received.map((r) => r.to[0])).toEqual(["june@example.com"]);
+    expect(received[0].raw).toContain("/reset-password/");
+    const sent = await prisma.mailOutbox.findFirstOrThrow({ where: { kind: RESET_MAIL } });
+    expect(sent).toMatchObject({ status: "sent", text: "", html: "", recipients: ["june@example.com"] });
+  });
+
+  it("are dropped, link wiped, when they cannot go out within 15 minutes", async () => {
+    process.env.MAIL_DAILY_LIMIT = "1";
+    await makeUser({ username: "kim", email: "kim@example.com" });
+    await makeUser({ username: "june", email: "june@example.com" });
+    await requestPasswordReset("kim@example.com");
+    await requestPasswordReset("june@example.com");
+    expect(await drainOutbox()).toBe(1);
+
+    expect(await drainOutbox(at(16 * 60 * 1000))).toBe(0);
+    const dropped = await prisma.mailOutbox.findFirstOrThrow({ where: { kind: RESET_MAIL, recipients: { has: "june@example.com" } } });
+    expect(dropped).toMatchObject({ status: "failed", text: "", html: "" });
+    expect(dropped.lastError).toContain("15 minutes");
+    expect(received).toHaveLength(1);
   });
 });

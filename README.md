@@ -45,6 +45,7 @@ Live at [links.juume.site](https://links.juume.site).
 - **Themes**: five presets, every colour, gradient, button style, radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.
 - **Stats**: totals, a 30-day chart, clicks per link, top referrers.
 - **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the admins get an email about new requests and the requester one about the decision.
+- **Password reset** by mail, with a one-use link.
 - **First-run setup**: a fresh install serves nothing until the admin account is created with a one-time code printed by `docker compose up`.
 - **Dark mode** in the dashboard. Public pages take every colour from their theme.
 
@@ -87,6 +88,7 @@ Every mail goes into an outbox table first, and the app sends from it once a min
 - A requester gets one when their request is approved or declined, or their account closed. **Spam** on the Requests page declines without a mail, since junk sign-ups tend to use made-up addresses that bounce.
 - A temporary refusal is retried with growing gaps; a bounced address is marked failed and not retried. Nothing about mail ever blocks a sign-up or a review.
 - At most 20 new requests a day are taken, from every address together, so a botnet cannot fill the review queue.
+- **Forgot password?** on the login page mails a link that works once, for 30 minutes. One open link per account and three a day, five requests an hour per IP, twenty a day for the whole site. These go out ahead of everything else and are dropped if they cannot go out within 15 minutes. Without mail the page says to ask an admin.
 
 If the relay runs in another compose project on the same machine, [`docker-compose.mail.yml`](docker-compose.mail.yml) joins its Docker network; turn it on with `COMPOSE_FILE` in `.env` (see [`.env.example`](.env.example)).
 
@@ -137,7 +139,7 @@ More in [docs/security.md](docs/security.md).
 ## Limits
 
 - The rate limiter and the page cache live in process memory, which fits one container. Several replicas would need Redis and a shared cache handler.
-- No password reset and no email verification.
+- No email verification: sign-up addresses are trusted until an admin approves them.
 - Images are streamed through the app, not from a CDN.
 
 ## Contributing

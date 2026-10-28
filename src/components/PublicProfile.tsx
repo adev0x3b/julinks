@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SOCIAL_PLATFORMS, type SocialIcon } from "@/lib/socials";
 import { themeStyle, type ThemeTokens } from "@/lib/themes";
 import type { ImageFocus, ImageLayout } from "@/lib/validation";
@@ -171,7 +172,16 @@ export function PublicProfile({
         );
       })}
 
-      <p className="jl-muted mt-auto pt-12 text-xs">Made with JuLinks</p>
+      <p className="jl-muted mt-auto pt-12 text-xs">
+        {/* Visitors who like the page find out where to get one; previews stay inert like every other link in them. */}
+        {preview ? (
+          "Made with JuLinks"
+        ) : (
+          <Link href="/" className="underline-offset-2 hover:underline" data-testid="made-with">
+            Made with JuLinks
+          </Link>
+        )}
+      </p>
     </div>
   );
 }

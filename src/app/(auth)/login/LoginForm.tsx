@@ -23,9 +23,16 @@ export function LoginForm() {
       <Field label="Email" name="email" error={e.email}>
         <input id="email" name="email" type="email" className="input" defaultValue={v.email} autoComplete="email" required />
       </Field>
-      <Field label="Password" name="password" error={e.password}>
-        <input id="password" name="password" type="password" className="input" autoComplete="current-password" required />
-      </Field>
+      <div>
+        <Field label="Password" name="password" error={e.password}>
+          <input id="password" name="password" type="password" className="input" autoComplete="current-password" required />
+        </Field>
+        <p className="mt-1 text-right text-sm">
+          <Link href="/forgot-password" className="text-brand-600 hover:underline">
+            Forgot password?
+          </Link>
+        </p>
+      </div>
       {e.form && (
         <p className="error" role="alert">
           {e.form}

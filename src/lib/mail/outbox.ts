@@ -1,7 +1,7 @@
 import { appUrl } from "@/lib/app-url";
 import { prisma } from "@/lib/db";
 import type { AccountStatus } from "@/lib/data/users";
-import { MailConfigError, mailConfig, type MailConfig } from "@/lib/mail/config";
+import { MailConfigError, mailConfig, mailEnabled, type MailConfig } from "@/lib/mail/config";
 import { deliver, type Mail } from "@/lib/mail/send";
 import { decisionMail, signupRequestsMail, type DecisionKind } from "@/lib/mail/templates";
 
@@ -14,6 +14,10 @@ import { decisionMail, signupRequestsMail, type DecisionKind } from "@/lib/mail/
 
 const ADMIN_NOTICE = "admin-requests";
 const DECISION = "decision";
+/** "Forgot password" links: sent ahead of everything else, and dropped if they cannot go out in time. */
+export const RESET_MAIL = "password-reset";
+/** A reset mail that has waited this long is dropped: the link would arrive about to expire. */
+export const RESET_MAIL_MAX_WAIT_MS = 15 * 60 * 1000;
 /** Admin notices are at least this far apart: a burst of sign-ups is one notice, then one more. */
 export const ADMIN_NOTICE_SPACING_MS = 30 * 60 * 1000;
 /** How many requests the admins' notice names; the rest are counted. */
@@ -139,12 +143,14 @@ export async function drainOutbox(now: () => Date = () => new Date()): Promise<n
   let sent = 0;
   try {
     for (;;) {
+      await dropStaleResetMails(now());
       const budget = await remainingBudget(now());
       if (budget <= 0) break;
-      const row = await prisma.mailOutbox.findFirst({
-        where: { status: "queued", notBefore: { lte: now() } },
-        orderBy: [{ notBefore: "asc" }, { createdAt: "asc" }],
-      });
+      // Someone is waiting at the reset form, so its mail goes first; then everything else, oldest first.
+      const due = { status: "queued" as const, notBefore: { lte: now() } };
+      const row =
+        (await prisma.mailOutbox.findFirst({ where: { ...due, kind: RESET_MAIL }, orderBy: { createdAt: "asc" } })) ??
+        (await prisma.mailOutbox.findFirst({ where: due, orderBy: [{ notBefore: "asc" }, { createdAt: "asc" }] }));
       if (!row) break;
       const claimed = await prisma.mailOutbox.updateMany({ where: { id: row.id, status: "queued" }, data: { status: "sending" } });
       if (claimed.count === 0) continue;
@@ -163,10 +169,12 @@ export async function drainOutbox(now: () => Date = () => new Date()): Promise<n
 
       const result = await deliver(config, mail);
       const attempts = row.attempts + 1;
+      // A reset mail's body holds a live link: once it is out (or given up), only the envelope is kept.
+      const forget = row.kind === RESET_MAIL ? { text: "", html: "" } : {};
       if (result.ok) {
         await prisma.mailOutbox.update({
           where: { id: row.id },
-          data: { status: "sent", sentAt: now(), attempts, recipientCount: mail.to.length, recipients: mail.to, subject: mail.subject, lastError: null },
+          data: { status: "sent", sentAt: now(), attempts, recipientCount: mail.to.length, recipients: mail.to, subject: mail.subject, lastError: null, ...forget },
         });
         sent += 1;
         continue;
@@ -175,7 +183,7 @@ export async function drainOutbox(now: () => Date = () => new Date()): Promise<n
       await prisma.mailOutbox.update({
         where: { id: row.id },
         data: giveUp
-          ? { status: "failed", attempts, lastError: result.error }
+          ? { status: "failed", attempts, lastError: result.error, ...forget }
           : { status: "queued", attempts, lastError: result.error, notBefore: new Date(now().getTime() + retryDelayMs(attempts)) },
       });
       console.error(`[mail] "${mail.subject}" ${giveUp ? "failed for good" : "will be retried"}: ${result.error}`);
@@ -186,6 +194,15 @@ export async function drainOutbox(now: () => Date = () => new Date()): Promise<n
     globalOutbox.__julinksDraining = false;
   }
   return sent;
+}
+
+/** Reset mails that could not go out in time are marked failed (the admins see them) and their link is wiped. */
+export async function dropStaleResetMails(now = new Date()): Promise<number> {
+  const { count } = await prisma.mailOutbox.updateMany({
+    where: { kind: RESET_MAIL, status: "queued", createdAt: { lt: new Date(now.getTime() - RESET_MAIL_MAX_WAIT_MS) } },
+    data: { status: "failed", text: "", html: "", lastError: "Not sent within 15 minutes, so the link would have expired" },
+  });
+  return count;
 }
 
 /** Rows a crash or restart left "sending" go back in the queue: at worst one message goes out twice. */
@@ -238,14 +255,8 @@ export async function outboxSummary(now = new Date()): Promise<OutboxSummary> {
       select: { id: true, recipients: true, subject: true, lastError: true, createdAt: true },
     }),
   ]);
-  let enabled = false;
-  try {
-    enabled = mailConfig() !== null;
-  } catch {
-    enabled = false;
-  }
   return {
-    enabled,
+    enabled: mailEnabled(),
     limits: mailLimits(),
     queued,
     sentToday: sent._sum.recipientCount ?? 0,

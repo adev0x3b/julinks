@@ -50,6 +50,20 @@ export function decisionMail(appUrl: URL, username: string, kind: DecisionKind):
   return { subject: kind === "denied" ? "Your JuLinks sign-up request" : "Your JuLinks account", text, html };
 }
 
+/** The "forgot password" mail: a one-use link that works for `minutes`. */
+export function resetMail(appUrl: URL, username: string, token: string, minutes: number): Content {
+  const resetUrl = new URL(`/reset-password/${token}`, appUrl).toString();
+  const intro = "someone, hopefully you, asked to reset the password of your JuLinks account.";
+  const validity = `The link works once, for the next ${minutes} minutes.`;
+  const ignore = "If it was not you, ignore this mail: your password stays as it is.";
+  const text = [`Hi ${username},`, "", intro, "Choose a new one here:", resetUrl, "", validity, ignore].join("\n");
+  const html = page(
+    `<p>Hi ${escape(username)},</p><p>${escape(intro)}</p><p><a href="${escape(resetUrl)}">Choose a new password</a></p>` +
+      `<p>${escape(validity)} ${escape(ignore)}</p>`,
+  );
+  return { subject: "Reset your JuLinks password", text, html };
+}
+
 function page(body: string): string {
   return `<!doctype html><html><body style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#1c1917">${body}</body></html>`;
 }

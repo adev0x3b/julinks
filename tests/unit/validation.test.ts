@@ -15,7 +15,7 @@ describe("usernameSchema", () => {
     expect(usernameSchema.safeParse(value).success).toBe(false);
   });
 
-  it.each(["login", "dashboard", "api", "Signup"])("rejects reserved route name %s", (value) => {
+  it.each(["login", "dashboard", "api", "Signup", "forgot-password", "reset-password"])("rejects reserved route name %s", (value) => {
     const result = usernameSchema.safeParse(value);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.issues[0].message).toMatch(/reserved/);

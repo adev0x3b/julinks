@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { MailConfigError, mailConfig, transportOptions } from "@/lib/mail/config";
-import { decisionMail, signupRequestsMail } from "@/lib/mail/templates";
+import { MailConfigError, mailConfig, mailEnabled, transportOptions } from "@/lib/mail/config";
+import { decisionMail, resetMail, signupRequestsMail } from "@/lib/mail/templates";
 
 vi.mock("@/lib/db", () => ({ prisma: {} }));
 const { decisionKind, mailLimits, retryDelayMs } = await import("@/lib/mail/outbox");
@@ -91,5 +91,24 @@ describe("retryDelayMs", () => {
     expect(retryDelayMs(1)).toBe(2 * 60 * 1000);
     expect(retryDelayMs(3)).toBe(8 * 60 * 1000);
     expect(retryDelayMs(20)).toBe(6 * 60 * 60 * 1000);
+  });
+});
+
+describe("resetMail", () => {
+  it("carries the one-use link, how long it works, and what to do if it was not you", () => {
+    const mail = resetMail(new URL("https://links.example.com"), "june", "tok_EN-abc", 30);
+    expect(mail.subject).toBe("Reset your JuLinks password");
+    expect(mail.text).toContain("https://links.example.com/reset-password/tok_EN-abc");
+    expect(mail.text).toContain("for the next 30 minutes");
+    expect(mail.text).toContain("ignore this mail");
+    expect(mail.html).toContain('href="https://links.example.com/reset-password/tok_EN-abc"');
+  });
+});
+
+describe("mailEnabled", () => {
+  it("is false when mail is off or half configured", () => {
+    expect(mailEnabled({})).toBe(false);
+    expect(mailEnabled({ SMTP_HOST: "mail.example.com" })).toBe(false);
+    expect(mailEnabled(base)).toBe(true);
   });
 });

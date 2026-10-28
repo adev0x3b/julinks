@@ -11,6 +11,7 @@ z.config({ jitless: true });
 export const RESERVED_USERNAMES = new Set([
   "login", "signup", "logout", "dashboard", "api", "l", "img", "themes", "admin", "settings",
   "stats", "static", "public", "assets", "uploads", "favicon.ico", "robots.txt", "sitemap.xml", "health", "setup",
+  "forgot-password", "reset-password",
 ]);
 
 const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])?$/;
@@ -63,6 +64,16 @@ export const decisionSchema = z.discriminatedUnion("status", [
   /** notify: false is "deny as spam": no mail to an address that is probably made up. */
   z.object({ status: z.literal("denied"), notify: z.boolean().optional() }),
 ]);
+
+/** "Forgot password": the address to send the link to. */
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email").max(254),
+});
+
+/** Choosing a new password from a reset link: typed twice. */
+export const resetPasswordSchema = z
+  .object({ password: passwordSchema, confirmPassword: z.string() })
+  .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match" });
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),

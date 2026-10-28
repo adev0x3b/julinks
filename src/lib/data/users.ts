@@ -124,17 +124,17 @@ export class WrongPassword extends Error {
 
 /**
  * Replaces the password after checking the current one, and bumps the session version so
- * every other device is logged out. Returns the new version for the caller's own cookie.
+ * every other device is logged out. Open reset links are used up. Returns the new version for the caller's own cookie.
  */
 export async function changePassword(userId: string, currentPassword: string, newPassword: string): Promise<number> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { passwordHash: true } });
   if (!(await verifyPassword(currentPassword, user.passwordHash))) throw new WrongPassword();
   const passwordHash = await hashPassword(newPassword);
-  const updated = await prisma.user.update({
-    where: { id: userId },
-    data: { passwordHash, sessionVersion: { increment: 1 } },
-    select: { sessionVersion: true },
-  });
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { passwordHash, sessionVersion: { increment: 1 } }, select: { sessionVersion: true } }),
+    // A "forgot password" link asked for earlier has nothing left to do.
+    prisma.passwordReset.updateMany({ where: { userId, usedAt: null }, data: { usedAt: new Date() } }),
+  ]);
   return updated.sessionVersion;
 }
 

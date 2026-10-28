@@ -19,9 +19,16 @@ function LoginContent({ searchParams }: PageProps<"/login">) {
   );
 }
 
-// Reads the query string behind Suspense so the rest of the page stays prerendered.
+// Reads the query string behind Suspense so the rest of the page stays prerendered: ?expired=1 after a stale session, ?reset=1 after a new password.
 async function ExpiredNotice({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
-  const { expired } = await searchParams;
+  const { expired, reset } = await searchParams;
+  if (reset === "1") {
+    return (
+      <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status" data-testid="reset-done">
+        Password changed. Log in with the new one.
+      </p>
+    );
+  }
   if (expired !== "1") return null;
   return (
     <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800" role="status">

@@ -38,6 +38,7 @@ model User {
   socials      SocialLink[]
   theme        Theme?   @relation("activeTheme", fields: [themeId], references: [id], onDelete: SetNull)
   themes       Theme[]  @relation("ownedThemes")
+  passwordResets PasswordReset[]
 
   @@map("users")
 }
@@ -193,4 +194,19 @@ enum MailStatus {
   sending
   sent
   failed
+}
+
+/// A "forgot password" link: only the SHA-256 of its token is kept. One use, short-lived.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  /// Set when the link is used, or when another password change makes it pointless.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_resets")
 }

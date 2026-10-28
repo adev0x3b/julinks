@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
@@ -244,6 +245,9 @@ test("edit links and profile, and see the public page update", async ({ page }) 
   await expect(page.getByRole("heading", { name: "Ada Two" })).toBeVisible();
   await expect(page.getByText("Testing all the things")).toBeVisible();
   await expect(page.locator("[data-theme]")).toHaveAttribute("data-theme", "Midnight");
+  // The footer leads visitors to the home page.
+  await page.getByTestId("made-with").click();
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
 });
 
 test("pictures: avatar and link pictures are stored, served, laid out and centred on the public page", async ({ page }) => {
@@ -625,4 +629,56 @@ test("a session cookie for a user that no longer exists is cleared instead of lo
   // Without the cookie, /login renders normally and /dashboard bounces to it.
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/login$/);
+});
+
+test("forgot password: the link sets a new password once, and logs in with it", async ({ page }) => {
+  // The login page leads to the form; it asks for an address, or says the site sends no mail.
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Forgot password?" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  if (process.env.SMTP_HOST) {
+    await page.getByLabel("Email").fill(newcomer.email);
+    await page.getByRole("button", { name: "Send the link" }).click();
+    await expect(page.getByTestId("reset-sent")).toContainText("works for 30 minutes");
+  } else {
+    await expect(page.getByTestId("reset-off")).toBeVisible();
+  }
+
+  // The link from the mail, put in directly so the run needs no mail server.
+  const token = randomBytes(32).toString("base64url");
+  const db = new pg.Client({ connectionString: E2E_DATABASE_URL });
+  await db.connect();
+  try {
+    await db.query(
+      `insert into password_resets (id, "userId", "tokenHash", "expiresAt") select 'e2e-reset', id, $1, now() + interval '30 minutes' from users where email = $2`,
+      [createHash("sha256").update(token).digest("hex"), newcomer.email],
+    );
+  } finally {
+    await db.end();
+  }
+
+  await page.goto(`/reset-password/${token}`);
+  await expect(page.getByText(`/${newcomer.username}`)).toBeVisible();
+  await page.getByLabel("New password", { exact: true }).fill("a fresh passphrase");
+  await page.getByLabel("New password again").fill("a different one");
+  await page.getByRole("button", { name: "Save the new password" }).click();
+  await expect(page.getByText("Passwords do not match")).toBeVisible();
+  // The form clears after a refused submit, like any password form.
+  await page.getByLabel("New password", { exact: true }).fill("a fresh passphrase");
+  await page.getByLabel("New password again").fill("a fresh passphrase");
+  await page.getByRole("button", { name: "Save the new password" }).click();
+  await expect(page).toHaveURL(/\/login\?reset=1$/);
+  await expect(page.getByTestId("reset-done")).toHaveText("Password changed. Log in with the new one.");
+
+  await submitLogin(page, newcomer);
+  await expect(page.getByText("Wrong email or password")).toBeVisible();
+  newcomer.password = "a fresh passphrase";
+  await loginAs(page, newcomer);
+  await logout(page);
+
+  // Used once, gone.
+  await page.goto(`/reset-password/${token}`);
+  await expect(page.getByTestId("reset-invalid")).toBeVisible();
+  await page.getByRole("link", { name: "Send a new link" }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
 });
