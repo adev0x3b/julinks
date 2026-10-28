@@ -21,6 +21,9 @@ FROM deps AS builder
 # by `npm ci` above (matching this image's OS) is the one that gets built.
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Pages without request data (landing, login) are rendered here, so absolute URLs in their
+# metadata (og:image) take APP_URL from the build: compose passes the one in .env.
+ARG APP_URL
 # A placeholder URL: the build never connects, but the Prisma client needs the variable to exist.
 RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" npx next build
 

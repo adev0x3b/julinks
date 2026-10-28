@@ -72,7 +72,7 @@ Everything is read from `.env` (see [`.env.example`](.env.example) for the comme
 | Variable | Default | What it does |
 | --- | --- | --- |
 | `SESSION_SECRET` | placeholder | Signs session cookies. The placeholder only works on localhost; use `openssl rand -base64 48`. |
-| `APP_URL` | `http://localhost:3000` | Public address, used for absolute URLs and the secret check above. |
+| `APP_URL` | `http://localhost:3000` | Public address, used for absolute URLs and the secret check above. The build reads it too (link previews), so change it with `--build`. |
 | `WEB_PORT`, `WEB_BIND` | `3000`, `127.0.0.1` | Where compose publishes the app. `WEB_BIND=0.0.0.0` opens it to the LAN. |
 | `TRUST_PROXY` | unset | `cloudflare` behind a Cloudflare Tunnel, `1` behind nginx, Caddy or Traefik: keys rate limits on the visitor's address. |
 | `ALLOW_DEMO_LOGIN` | `1` | Set `0` on a public site so nobody logs in as the demo profiles. |

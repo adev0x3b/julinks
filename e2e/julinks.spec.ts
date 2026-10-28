@@ -341,8 +341,8 @@ test("a link's own preview image becomes its picture: on its own after adding, a
   await expect(page.getByTestId("picture-panel").getByRole("alert")).toHaveCount(0);
   await expect(row.getByTestId("link-thumbnail")).toHaveAttribute("src", first!);
 
-  // A page with no preview image says so instead of failing silently.
-  await addLink(page, "Nothing here", `${baseURL}/themes`);
+  // A page with no preview image (and no icon: every app page has one now) says so instead of failing silently.
+  await addLink(page, "Nothing here", `${baseURL}/robots.txt`);
   const bare = page.getByTestId("link-row").filter({ hasText: "Nothing here" });
   await bare.getByRole("button", { name: "Add picture for Nothing here" }).click();
   await page.getByRole("button", { name: "Grab picture from the link Nothing here" }).click();
