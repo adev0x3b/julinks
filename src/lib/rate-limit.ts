@@ -40,6 +40,11 @@ export class RateLimiter {
     return { ...this.result(bucket, now), ok: bucket.count < this.limit };
   }
 
+  /** Forgets the key's attempts, for when the reason to limit it is gone. */
+  clear(key: string): void {
+    this.buckets.delete(key);
+  }
+
   private bucket(key: string, now: number): Bucket {
     let bucket = this.buckets.get(key);
     if (!bucket || bucket.resetAt <= now) {

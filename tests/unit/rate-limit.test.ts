@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { RateLimiter } from "@/lib/rate-limit";
 
 describe("RateLimiter", () => {
+  it("forgets a key on clear", () => {
+    const limiter = new RateLimiter(1, 60_000);
+    limiter.check("k");
+    expect(limiter.check("k").ok).toBe(false);
+    limiter.clear("k");
+    expect(limiter.check("k").ok).toBe(true);
+  });
+
   it("allows up to the limit inside a window, then blocks", () => {
     let now = 0;
     const limiter = new RateLimiter(3, 1000, () => now);

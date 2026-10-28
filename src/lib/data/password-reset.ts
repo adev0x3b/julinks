@@ -42,8 +42,17 @@ export async function requestPasswordReset(email: string, now = new Date()): Pro
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${RESET_LOCK})`;
     const since = new Date(now.getTime() - DAY);
-    // One link at a time: asking again while the last one still works sends nothing new.
-    if (await tx.passwordReset.count({ where: { userId: user.id, usedAt: null, expiresAt: { gt: now } } })) return "active";
+    // Links are only needed for a day's count; older rows go, whoever they belonged to.
+    await tx.passwordReset.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 7 * DAY) } } });
+    // One link at a time: asking again while the last one still works sends nothing new. Unless its mail
+    // never left (dropped, bounced or deleted by an admin): then a new link is the only way in.
+    const open = await tx.passwordReset.count({ where: { userId: user.id, usedAt: null, expiresAt: { gt: now } } });
+    const onItsWay = await tx.mailOutbox.count({
+      where: { kind: RESET_MAIL, recipients: { has: user.email }, status: { in: ["queued", "sending", "sent"] }, createdAt: { gt: new Date(now.getTime() - RESET_LINK_MINUTES * 60 * 1000) } },
+    });
+    if (open > 0 && onItsWay > 0) return "active";
+    // An open link without a mail is useless to its owner; retire it before making the new one.
+    await tx.passwordReset.updateMany({ where: { userId: user.id, usedAt: null }, data: { usedAt: now } });
     if ((await tx.passwordReset.count({ where: { userId: user.id, createdAt: { gte: since } } })) >= RESETS_PER_ACCOUNT_PER_DAY) return "account-limit";
     if ((await tx.mailOutbox.count({ where: { kind: RESET_MAIL, createdAt: { gte: since } } })) >= RESET_MAILS_PER_DAY) return "site-limit";
 
@@ -62,7 +71,7 @@ async function usableReset(token: string, now: Date) {
   if (!TOKEN_PATTERN.test(token)) return null;
   const row = await prisma.passwordReset.findUnique({
     where: { tokenHash: hashResetToken(token) },
-    select: { id: true, userId: true, usedAt: true, expiresAt: true, user: { select: { username: true, status: true, isDemo: true } } },
+    select: { id: true, userId: true, usedAt: true, expiresAt: true, user: { select: { username: true, email: true, status: true, isDemo: true } } },
   });
   if (!row || row.usedAt || row.expiresAt <= now || row.user.status !== "approved" || row.user.isDemo) return null;
   return row;
@@ -84,7 +93,7 @@ export class InvalidResetLink extends Error {
  * Sets the new password and uses up the link, along with any other open link of the account.
  * The session version goes up, so every device that was logged in is logged out.
  */
-export async function resetPassword(token: string, password: string, now = new Date()): Promise<{ username: string }> {
+export async function resetPassword(token: string, password: string, now = new Date()): Promise<{ username: string; email: string }> {
   const row = await usableReset(token, now);
   if (!row) throw new InvalidResetLink();
   const passwordHash = await hashPassword(password);
@@ -94,6 +103,6 @@ export async function resetPassword(token: string, password: string, now = new D
     if (claimed.count === 0) throw new InvalidResetLink();
     await tx.passwordReset.updateMany({ where: { userId: row.userId, usedAt: null }, data: { usedAt: now } });
     await tx.user.update({ where: { id: row.userId }, data: { passwordHash, sessionVersion: { increment: 1 } } });
-    return { username: row.user.username };
+    return { username: row.user.username, email: row.user.email };
   });
 }

@@ -5,7 +5,7 @@ import { after } from "next/server";
 import { isSetupPending } from "@/lib/data/setup";
 import { InvalidResetLink, requestPasswordReset, resetPassword } from "@/lib/data/password-reset";
 import { drainOutbox } from "@/lib/mail/outbox";
-import { resetLimiter, retryLater } from "@/lib/rate-limit";
+import { accountLimiter, resetLimiter, retryLater } from "@/lib/rate-limit";
 import { clientIp } from "@/lib/request-ip";
 import { destroySession } from "@/lib/session";
 import { fieldErrors, forgotPasswordSchema, resetPasswordSchema } from "@/lib/validation";
@@ -42,7 +42,9 @@ export async function chooseNewPassword(_prev: ResetFormState, formData: FormDat
   const parsed = resetPasswordSchema.safeParse({ password: formData.get("password"), confirmPassword: formData.get("confirmPassword") });
   if (!parsed.success) return { errors: fieldErrors(parsed.error) };
   try {
-    await resetPassword(String(formData.get("token") ?? ""), parsed.data.password);
+    const account = await resetPassword(String(formData.get("token") ?? ""), parsed.data.password);
+    // Wrong guesses at the old password may have locked the account's login; the owner just proved themselves.
+    accountLimiter.clear(`login:${account.email}`);
   } catch (error) {
     if (error instanceof InvalidResetLink) {
       resetLimiter.check(ipKey);

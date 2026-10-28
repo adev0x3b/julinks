@@ -10,6 +10,7 @@ import {
   RESET_MAIL,
   deleteQueuedMail,
   drainOutbox,
+  pruneOutbox,
   outboxSummary,
   queueAdminNotice,
   queueDecisionMail,
@@ -292,5 +293,49 @@ describe("reset mails", () => {
     expect(dropped).toMatchObject({ status: "failed", text: "", html: "" });
     expect(dropped.lastError).toContain("15 minutes");
     expect(received).toHaveLength(1);
+  });
+});
+
+describe("keeping the outbox moving", () => {
+  it("fails a notice with more admins than the hourly limit instead of blocking the queue behind it", async () => {
+    process.env.MAIL_HOURLY_LIMIT = "1";
+    await makeUser({ username: "boss", email: "boss@example.com" }, { role: "admin" });
+    await makeUser({ username: "boss2", email: "boss2@example.com" }, { role: "admin" });
+    await makeUser({ username: "newbie" }, { status: "pending" });
+    await queueAdminNotice();
+    await queueDecisionMail({ username: "june", email: "june@example.com" }, "pending", "denied");
+
+    expect(await drainOutbox()).toBe(1);
+    expect(received.map((r) => r.to[0])).toEqual(["june@example.com"]);
+    const notice = await prisma.mailOutbox.findFirstOrThrow({ where: { kind: "admin-requests" } });
+    expect(notice.status).toBe("failed");
+    expect(notice.lastError).toContain("more than the mail limits allow");
+  });
+
+  it("puts a row back in the queue when the database fails mid-send", async () => {
+    await queueDecisionMail({ username: "june", email: "june@example.com" }, "pending", "denied");
+    vi.spyOn(prisma.mailOutbox, "update").mockRejectedValueOnce(new Error("connection lost"));
+    await expect(drainOutbox()).rejects.toThrow("connection lost");
+    const row = await prisma.mailOutbox.findFirstOrThrow();
+    expect(row.status).toBe("queued");
+    // Due again a minute later, and goes out then.
+    expect(await drainOutbox(at(61_000))).toBe(1);
+  });
+
+  it("prunes sent mail after a week and failed mail after a month", async () => {
+    const day = 24 * 60 * 60 * 1000;
+    const ago = (days: number) => new Date(Date.now() - days * day);
+    await prisma.mailOutbox.createMany({
+      data: [
+        { kind: "decision", recipients: ["a@example.com"], status: "sent", sentAt: ago(8) },
+        { kind: "decision", recipients: ["b@example.com"], status: "sent", sentAt: ago(2) },
+        { kind: "decision", recipients: ["c@example.com"], status: "failed", createdAt: ago(31) },
+        { kind: "decision", recipients: ["d@example.com"], status: "failed", createdAt: ago(8) },
+        { kind: "decision", recipients: ["e@example.com"], status: "queued", createdAt: ago(40) },
+      ],
+    });
+    expect(await pruneOutbox()).toBe(2);
+    const left = await prisma.mailOutbox.findMany({ orderBy: { recipients: "asc" } });
+    expect(left.map((r) => r.recipients[0]).sort()).toEqual(["b@example.com", "d@example.com", "e@example.com"]);
   });
 });

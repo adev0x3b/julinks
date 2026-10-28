@@ -77,6 +77,23 @@ describe("asking for a reset link", () => {
     expect(await requestPasswordReset("june@example.com", later(25 * 60 * MINUTE))).toBe("queued");
   });
 
+  it("makes a new link when the last one's mail never went out", async () => {
+    const user = await makeUser({ email: "june@example.com" });
+    expect(await requestPasswordReset("june@example.com")).toBe("queued");
+    const first = await tokenFor("june@example.com");
+    // Dropped for want of budget, bounced, or deleted by an admin: the owner never got the link.
+    await prisma.mailOutbox.updateMany({ where: { kind: RESET_MAIL }, data: { status: "failed" } });
+    expect(await requestPasswordReset("june@example.com", later(MINUTE))).toBe("queued");
+    expect(await findResetLink(first)).toBeNull();
+    expect(await prisma.passwordReset.count({ where: { userId: user.id, usedAt: null } })).toBe(1);
+
+    await prisma.mailOutbox.deleteMany();
+    expect(await requestPasswordReset("june@example.com", later(2 * MINUTE))).toBe("queued");
+    expect(await requestPasswordReset("june@example.com", later(3 * MINUTE))).toBe("active");
+    // Three links today, two of them never delivered: still three.
+    expect(await requestPasswordReset("june@example.com", later(40 * MINUTE))).toBe("account-limit");
+  });
+
   it("stops at the site-wide daily cap, whoever asks", async () => {
     // Straight into the table: hashing 21 real passwords would only slow the test down.
     const names = [...Array.from({ length: RESET_MAILS_PER_DAY }, (_, i) => `u${i}`), "late"];
@@ -95,7 +112,7 @@ describe("using a reset link", () => {
     await requestPasswordReset("june@example.com");
     const token = await tokenFor("june@example.com");
 
-    expect(await resetPassword(token, "a brand new passphrase")).toEqual({ username: user.username });
+    expect(await resetPassword(token, "a brand new passphrase")).toEqual({ username: user.username, email: "june@example.com" });
     expect(await authenticate("june@example.com", "correct horse battery staple")).toBeNull();
     const after = await authenticate("june@example.com", "a brand new passphrase");
     expect(after?.sessionVersion).toBe(1);
