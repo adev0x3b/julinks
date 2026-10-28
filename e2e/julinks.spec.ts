@@ -211,8 +211,8 @@ test("edit links and profile, and see the public page update", async ({ page }) 
 
   // Live preview reflects both links before leaving the page.
   const preview = page.locator("[data-theme]");
-  await expect(preview.getByRole("button", { name: "My blog" })).toBeVisible();
-  await expect(preview.getByRole("button", { name: "GitHub" })).toBeVisible();
+  await expect(preview.getByRole("button", { name: "My blog", exact: true })).toBeVisible();
+  await expect(preview.getByRole("button", { name: "GitHub", exact: true })).toBeVisible();
 
   // Public page shows both, in order.
   await page.goto(`/${user.username}`);

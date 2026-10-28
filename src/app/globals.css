@@ -136,6 +136,7 @@ body {
 }
 
 /* Public page: every colour comes from the theme's custom properties (src/lib/themes.ts). */
+.jl-shell,
 .jl-page {
   background: var(--jl-bg);
   color: var(--jl-text);
@@ -143,6 +144,29 @@ body {
 }
 .jl-muted {
   color: var(--jl-muted);
+}
+/* Wide screens: the page becomes a phone-sized card over a dimmed copy of its background. */
+@media (min-width: 1024px) {
+  .jl-shell[data-frame] {
+    background: linear-gradient(rgb(0 0 0 / 0.45), rgb(0 0 0 / 0.45)), var(--jl-bg);
+    background-attachment: fixed;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .jl-shell[data-frame] > .jl-page {
+    max-width: 36rem;
+    min-height: calc(100vh - 4rem);
+    border-radius: 2rem;
+    box-shadow: 0 30px 80px rgb(0 0 0 / 0.35);
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+/* Small round controls on the page (share), readable on light and dark themes alike. */
+.jl-chip {
+  background: color-mix(in srgb, var(--jl-text) 14%, transparent);
+  color: var(--jl-text);
+  backdrop-filter: blur(8px);
 }
 .jl-avatar {
   background: var(--jl-btn-bg);

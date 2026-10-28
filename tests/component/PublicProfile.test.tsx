@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CENTRE, focusStyle, PublicProfile, type PublicProfileData } from "@/components/PublicProfile";
 import { getPreset } from "@/lib/themes";
@@ -41,7 +41,10 @@ describe("PublicProfile", () => {
   it("does not navigate in preview mode", () => {
     render(<PublicProfile profile={profile} preview />);
     expect(screen.queryAllByRole("link")).toHaveLength(0);
-    expect(screen.getAllByRole("button")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /^(Notes|Letters)$/ })).toHaveLength(2);
+    // Share and the link menus show what the page looks like, but do nothing.
+    fireEvent.click(screen.getByRole("button", { name: "More options for Notes" }));
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("applies the theme as custom properties and shows an empty state", () => {

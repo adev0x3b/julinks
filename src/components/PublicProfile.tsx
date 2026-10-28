@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LinkMenu, PageShareButton } from "@/components/ShareButtons";
 import { SOCIAL_PLATFORMS, type SocialIcon } from "@/lib/socials";
 import { themeStyle, type ThemeTokens } from "@/lib/themes";
 import type { ImageFocus, ImageLayout } from "@/lib/validation";
@@ -69,31 +70,35 @@ export function PublicProfile({
     .join("");
 
   return (
+    // On a wide screen the real page sits in a phone-sized card over a dimmed copy of its own
+    // background (.jl-shell[data-frame] in globals.css). Previews are already framed by their container.
+    <div className="jl-shell flex min-h-full w-full" data-frame={preview ? undefined : "true"} style={themeStyle(theme.tokens, theme.backgroundUrl)} data-theme={theme.name}>
     <div
-      className="jl-page flex min-h-full w-full flex-col items-center px-5 py-12"
-      style={themeStyle(theme.tokens, theme.backgroundUrl)}
-      data-theme={theme.name}
+      className="jl-page relative flex min-h-full w-full flex-col items-center px-4 pb-10 pt-16"
     >
+      <div className="absolute right-4 top-4">
+        <PageShareButton username={profile.username} displayName={profile.displayName} preview={preview} />
+      </div>
       {profile.avatarUrl ? (
-        <FramedImage src={profile.avatarUrl} focus={profile.avatarFocus} className="jl-avatar size-20 rounded-full" />
+        <FramedImage src={profile.avatarUrl} focus={profile.avatarFocus} className="jl-avatar size-24 rounded-full" />
       ) : (
         <div
-          className="jl-avatar grid size-20 place-items-center rounded-full text-2xl font-semibold"
+          className="jl-avatar grid size-24 place-items-center rounded-full text-3xl font-semibold"
           aria-hidden
         >
           {initials || "?"}
         </div>
       )}
-      <h1 className="mt-4 text-xl font-semibold">{profile.displayName}</h1>
-      <p className="jl-muted mt-1 text-sm">@{profile.username}</p>
+      <h1 className="mt-4 text-2xl font-bold">{profile.displayName}</h1>
+      <p className="jl-muted mt-1 text-[15px]">@{profile.username}</p>
       {profile.bio && (
         // Line breaks the owner typed are kept, so a row of emoji can sit under the text instead of wrapping into it.
-        <p className="mt-3 max-w-xs whitespace-pre-line text-center text-sm leading-relaxed">
+        <p className="mt-3 max-w-md whitespace-pre-line text-center text-[15px] leading-relaxed">
           {profile.bio}
         </p>
       )}
       {profile.socials.length > 0 && (
-        <ul className="mt-4 flex flex-wrap justify-center gap-4" aria-label="Social links">
+        <ul className="mt-5 flex flex-wrap justify-center gap-5" aria-label="Social links">
           {profile.socials.map((social, index) => {
             const platform = SOCIAL_PLATFORMS[social.platform];
             return (
@@ -108,7 +113,7 @@ export function PublicProfile({
                   title={platform.label}
                   data-platform={social.platform}
                 >
-                  <svg viewBox="0 0 24 24" width={24} height={24} fill="currentColor" aria-hidden>
+                  <svg viewBox="0 0 24 24" width={28} height={28} fill="currentColor" aria-hidden>
                     <path d={platform.path} />
                   </svg>
                 </a>
@@ -119,7 +124,7 @@ export function PublicProfile({
       )}
 
       <ul
-        className="mt-8 flex w-full max-w-sm flex-col gap-3"
+        className="mt-8 flex w-full max-w-xl flex-col gap-3.5"
         aria-label="Links"
       >
         {topLevel.map((link) => (
@@ -135,7 +140,7 @@ export function PublicProfile({
         const links = byFolder.get(folder.id) ?? [];
         if (links.length === 0) return null;
         const list = (
-          <ul className="flex w-full flex-col gap-3" aria-label={folder.title}>
+          <ul className="flex w-full flex-col gap-3.5" aria-label={folder.title}>
             {links.map((link) => (
               <li key={link.id}>
                 <LinkButton link={link} preview={preview} />
@@ -146,8 +151,8 @@ export function PublicProfile({
         return folder.collapsed ? (
           // Native disclosure: works without JavaScript and inside the hook-free preview.
           // Open, the row's own box grows to hold the links as plain rows (styles in globals.css, .jl-disclosure).
-          <details key={folder.id} className="jl-folder jl-disclosure group mt-3 w-full max-w-sm" data-folder={folder.id} data-collapsed="true">
-            <summary className="jl-button flex w-full cursor-pointer list-none items-center justify-center gap-2 px-12 py-3 text-center text-sm font-medium transition hover:-translate-y-0.5 [&::-webkit-details-marker]:hidden">
+          <details key={folder.id} className="jl-folder jl-disclosure group mt-3.5 w-full max-w-xl" data-folder={folder.id} data-collapsed="true">
+            <summary className="jl-button flex min-h-16 w-full cursor-pointer list-none items-center justify-center gap-2 px-16 py-3 text-center text-[15px] font-medium transition hover:-translate-y-0.5 [&::-webkit-details-marker]:hidden">
               {folder.title}
               <svg viewBox="0 0 16 16" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} className="transition group-open:rotate-180" aria-hidden>
                 <path d="M3 6l5 5 5-5" />
@@ -156,14 +161,14 @@ export function PublicProfile({
             <div className="jl-disclosure-body mt-3">{list}</div>
           </details>
         ) : (
-          <section key={folder.id} className="jl-folder mt-8 w-full max-w-sm" data-folder={folder.id} data-collapsed="false">
-            <h2 className="jl-muted mb-3 text-center text-xs font-semibold uppercase tracking-widest">{folder.title}</h2>
+          <section key={folder.id} className="jl-folder mt-8 w-full max-w-xl" data-folder={folder.id} data-collapsed="false">
+            <h2 className="jl-muted mb-3 text-center text-sm font-semibold uppercase tracking-widest">{folder.title}</h2>
             {list}
           </section>
         );
       })}
 
-      <p className="jl-muted mt-auto pt-12 text-xs">
+      <p className="jl-muted mt-auto pt-12 text-sm">
         {/* Visitors who like the page find out where to get one; previews stay inert like every other link in them. */}
         {preview ? (
           "Made with JuLinks"
@@ -174,47 +179,57 @@ export function PublicProfile({
         )}
       </p>
     </div>
+    </div>
   );
 }
 
-/** One link: a card with a big picture, or a button with an optional small picture beside the title. */
+/**
+ * One link: a card with a big picture, or a button with an optional round picture beside the title.
+ * The ⋮ menu sits over the button rather than inside it, so opening it never follows the link.
+ */
 function LinkButton({ link, preview }: { link: PublicLink; preview: boolean }) {
-  return link.thumbnailUrl && link.imageLayout === "featured" ? (
-              <a
-                href={preview ? undefined : `/l/${link.id}`}
-                role={preview ? "button" : undefined}
-                className="jl-button flex w-full flex-col items-center gap-3 p-2 pb-3 text-center text-sm font-medium transition hover:-translate-y-0.5"
-                // A pill radius would turn a tall card into an ellipse: cap it, and round the picture to match inside the padding.
-                style={{ borderRadius: "min(var(--jl-radius), 1.25rem)" }}
-                data-link-id={link.id}
-                data-layout="featured"
-              >
-                <FramedImage
-                  src={link.thumbnailUrl}
-                  focus={link.imageFocus}
-                  className="aspect-[16/10] w-full"
-                  style={{ borderRadius: "max(0px, min(calc(var(--jl-radius) - 0.5rem), 0.75rem))" }}
-                />
-                <span className="px-4">{link.title}</span>
-              </a>
-            ) : (
-              <a
-                href={preview ? undefined : `/l/${link.id}`}
-                role={preview ? "button" : undefined}
-                className="jl-button relative flex w-full items-center justify-center px-12 py-3 text-center text-sm font-medium transition hover:-translate-y-0.5"
-                data-link-id={link.id}
-                data-layout="thumbnail"
-              >
-                {link.thumbnailUrl && (
-                  <FramedImage
-                    src={link.thumbnailUrl}
-                    focus={link.imageFocus}
-                    className="absolute left-2 top-1/2 size-8 -translate-y-1/2 rounded-[calc(var(--jl-radius)/2)]"
-                  />
-                )}
-                {link.title}
-              </a>
-            );
+  const featured = link.thumbnailUrl && link.imageLayout === "featured";
+  return (
+    <div className="relative">
+      {featured ? (
+        <a
+          href={preview ? undefined : `/l/${link.id}`}
+          role={preview ? "button" : undefined}
+          className="jl-button flex w-full flex-col items-center gap-3 p-2.5 pb-4 text-center text-[15px] font-medium transition hover:-translate-y-0.5"
+          // A pill radius would turn a tall card into an ellipse: cap it, and round the picture to match inside the padding.
+          style={{ borderRadius: "min(var(--jl-radius), 1.5rem)" }}
+          data-link-id={link.id}
+          data-layout="featured"
+        >
+          <FramedImage
+            src={link.thumbnailUrl!}
+            focus={link.imageFocus}
+            className="aspect-[16/9] w-full"
+            style={{ borderRadius: "max(0px, min(calc(var(--jl-radius) - 0.625rem), 1rem))" }}
+          />
+          <span className="px-12">{link.title}</span>
+        </a>
+      ) : (
+        <a
+          href={preview ? undefined : `/l/${link.id}`}
+          role={preview ? "button" : undefined}
+          className="jl-button relative flex min-h-16 w-full items-center justify-center px-[4.25rem] py-3 text-center text-[15px] font-medium transition hover:-translate-y-0.5"
+          data-link-id={link.id}
+          data-layout="thumbnail"
+        >
+          {link.thumbnailUrl && (
+            <FramedImage
+              src={link.thumbnailUrl}
+              focus={link.imageFocus}
+              className="absolute left-2 top-1/2 size-12 -translate-y-1/2 rounded-full"
+            />
+          )}
+          {link.title}
+        </a>
+      )}
+      <LinkMenu title={link.title} url={link.url} preview={preview} className={featured ? "bottom-2.5 right-2" : "right-2 top-1/2 -translate-y-1/2"} />
+    </div>
+  );
 }
 
 export const CENTRE: ImageFocus = { x: 50, y: 50, zoom: 100 };
