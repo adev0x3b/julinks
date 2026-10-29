@@ -141,7 +141,7 @@ More in [docs/security.md](docs/security.md).
 ## Limits
 
 - The rate limiter and the page cache live in process memory, which fits one container. Several replicas would need Redis and a shared cache handler.
-- No email verification: sign-up addresses are trusted until an admin approves them.
+- Email confirmation needs the mail settings. Without them, sign-up addresses are not checked and an admin has to judge each request.
 - Images are streamed through the app, not from a CDN.
 
 ## Contributing
