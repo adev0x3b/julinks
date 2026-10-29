@@ -229,8 +229,11 @@ export function extractPreviewImage(html: string, pageUrl: string): string | nul
   return null;
 }
 
+const ENTITIES: Record<string, string> = { "&amp;": "&", "&quot;": '"', "&#39;": "'", "&lt;": "<", "&gt;": ">" };
+
+/** One pass, so "&amp;lt;" stays "&lt;" instead of being decoded twice. */
 function decodeEntities(value: string): string {
-  return value.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  return value.replace(/&(?:amp|quot|#39|lt|gt);/g, (entity) => ENTITIES[entity]);
 }
 
 export type LinkPreview = { imageUrl: string; data: Buffer; contentType: string };

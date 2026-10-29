@@ -25,6 +25,7 @@ describe("extractPreviewImage", () => {
     expect(extractPreviewImage("<meta name='twitter:image' content='https://cdn.example.com/t.png'>", page)).toBe("https://cdn.example.com/t.png");
     expect(extractPreviewImage('<link rel="image_src" href="img.jpg">', page)).toBe("https://example.com/posts/img.jpg");
     expect(extractPreviewImage('<meta property="og:image" content="/a.png?x=1&amp;y=2">', page)).toBe("https://example.com/a.png?x=1&y=2");
+    expect(extractPreviewImage('<meta property="og:image" content="/a.png?q=&amp;lt;">', page)).toBe("https://example.com/a.png?q=&lt;");
   });
 
   it("falls back to the site's icon last: apple-touch-icon, then the largest usable rel=icon", () => {
