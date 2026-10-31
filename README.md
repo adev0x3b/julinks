@@ -44,7 +44,7 @@ Live at [links.juume.site](https://links.juume.site).
 - **Bio and social icons** for 24 platforms. Type a handle, the app builds the URL.
 - **Themes**: six presets, every colour, gradient, button style, shadow (none, soft or a 3D outline), radius and font adjustable, a background image with overlay. Publish a theme to the gallery and anyone can copy it.
 - **Sharing**: a Share button for the page and a ⋮ menu on each link that shares or copies it. On a computer the page sits in a phone-width card.
-- **Stats**: totals, a 30-day chart, clicks per link, top referrers.
+- **Stats**: totals, a 30-day chart, clicks per link, and the sites visitors arrive from.
 - **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the requester confirms their email first, the admins get an email about new requests and the requester one about the decision.
 - **Password reset** by mail, with a one-use link.
 - **First-run setup**: a fresh install serves nothing until the admin account is created with a one-time code printed by `docker compose up`.

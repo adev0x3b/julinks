@@ -33,7 +33,7 @@ The server fetches a URL the owner typed, the classic SSRF shape. Only `http(s)`
 
 - Every response carries a Content Security Policy (`default-src 'self'`, no third-party origins, `object-src 'none'`, `frame-ancestors 'none'`, `form-action 'self'`), HSTS, `X-Frame-Options`, `nosniff`, a referrer policy, a permissions policy and `Cross-Origin-Opener-Policy`. Inline scripts and styles are allowed: a nonce-based policy would force every page to render per request and lose the cached public pages, and the app embeds no third-party code.
 - `next`, `react` and `sharp` are pinned past the October 2026 Next.js security update and the December 2025 React Server Components RCE; Dependabot opens a weekly PR for the next ones. No `eval`, no `child_process`; `$queryRaw` appears three times, always as a tagged template. The container runs as an unprivileged user.
-- Click records keep the referrer host only. No IP addresses or user agents are stored.
+- Click records keep the source site only: the public page adds `?from=<host>` (the host of `document.referrer`) to its link addresses, and `/l/:id` falls back to the Referer host when the link was shared on its own. The value must be a plain host name; this site itself counts as no source. A forged `from` can only skew the owner's stats, within the click rate limit. No IP addresses or user agents are stored.
 
 ## Deploying
 

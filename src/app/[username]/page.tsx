@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SetupGate } from "@/components/SetupGate";
 import { PublicProfile } from "@/components/PublicProfile";
+import { ReferrerTagger } from "@/components/ReferrerTagger";
 import { profileTag } from "@/lib/cache-tags";
 import { getPublicProfile } from "@/lib/data/users";
 import { DEFAULT_PRESET, pageBackground } from "@/lib/themes";
@@ -52,7 +53,12 @@ async function Profile({ params }: Pick<PageProps<"/[username]">, "params">) {
   const { username } = await params;
   const profile = await loadProfile(username.toLowerCase());
   if (!profile) notFound();
-  return <PublicProfile profile={profile} />;
+  return (
+    <>
+      <PublicProfile profile={profile} />
+      <ReferrerTagger />
+    </>
+  );
 }
 
 /** Neutral placeholder in the default theme while the profile streams in. */

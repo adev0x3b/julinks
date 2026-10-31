@@ -74,7 +74,7 @@ function Landing() {
             </li>
             <li className="card p-4">
               <strong className="block text-stone-900">Click stats</strong>
-              Daily clicks and top referrers per link.
+              Daily clicks per link, and the sites your visitors come from.
             </li>
           </ul>
         </div>

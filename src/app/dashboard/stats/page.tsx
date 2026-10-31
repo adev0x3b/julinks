@@ -48,7 +48,7 @@ export default async function StatsPage() {
           )}
         </section>
         <section className="card">
-          <h2 className="mb-4 text-base font-semibold">Top referrers</h2>
+          <h2 className="mb-4 text-base font-semibold">Where visitors come from</h2>
           {stats.topReferrers.length === 0 ? (
             <p className="text-sm text-stone-500">No clicks yet.</p>
           ) : (

@@ -37,8 +37,9 @@ export function PrivacyEnglish({ operator, processors, mail }: PrivacyFacts) {
           </li>
         )}
         <li>
-          <strong>Clicks on links</strong>: the time, and the name of the site the visitor came from (for example instagram.com). No cookie,
-          IP address or identifier is involved, so visitors cannot be told apart. Kept as long as the link exists.
+          <strong>Clicks on links</strong>: the time, and the name of the site the visitor reached the page from (for example instagram.com),
+          which the page passes along with the click. Only the site name is kept, never the full address. No cookie, IP address or identifier
+          is involved, so visitors cannot be told apart. Kept as long as the link exists.
         </li>
         {mail && (
           <li>
@@ -127,8 +128,9 @@ export function PrivacyItalian({ operator, processors, mail }: PrivacyFacts) {
           </li>
         )}
         <li>
-          <strong>Clic sui link</strong>: l&apos;ora e il nome del sito da cui arriva il visitatore (per esempio instagram.com). Nessun cookie,
-          indirizzo IP o identificativo: i visitatori non sono distinguibili. Restano finché esiste il link.
+          <strong>Clic sui link</strong>: l&apos;ora e il nome del sito da cui il visitatore è arrivato alla pagina (per esempio
+          instagram.com), che la pagina trasmette insieme al clic. Si conserva solo il nome del sito, mai l&apos;indirizzo completo. Nessun
+          cookie, indirizzo IP o identificativo: i visitatori non sono distinguibili. Restano finché esiste il link.
         </li>
         {mail && (
           <li>

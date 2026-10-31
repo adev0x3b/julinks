@@ -1,7 +1,8 @@
 import { after, NextResponse } from "next/server";
 import { findRedirectTarget, recordClick } from "@/lib/data/clicks";
 import { clickLimiter } from "@/lib/rate-limit";
-import { referrerHost } from "@/lib/referrer";
+import { appUrl } from "@/lib/app-url";
+import { clickSource } from "@/lib/referrer";
 import { clientIp } from "@/lib/request-ip";
 
 /**
@@ -21,7 +22,11 @@ export async function GET(request: Request, ctx: RouteContext<"/l/[id]">) {
   if (!link) {
     return new NextResponse("Not found", { status: 404 });
   }
-  const referrer = request.headers.get("referer");
-  after(() => recordClick(link.id, referrerHost(referrer)));
+  const source = clickSource({
+    from: new URL(request.url).searchParams.get("from"),
+    referer: request.headers.get("referer"),
+    ownHosts: [appUrl().host, request.headers.get("host")],
+  });
+  after(() => recordClick(link.id, source));
   return NextResponse.redirect(link.url, { status: 302, headers: { "Cache-Control": "no-store" } });
 }

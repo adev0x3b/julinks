@@ -47,7 +47,7 @@ describe("clicks", () => {
     expect(stats.daily.reduce((sum, d) => sum + d.count, 0)).toBe(3);
     expect(stats.topReferrers).toEqual([
       { referrer: "twitter.com", count: 2 },
-      { referrer: "direct", count: 2 },
+      { referrer: "Direct or unknown", count: 2 },
     ]);
   });
 });

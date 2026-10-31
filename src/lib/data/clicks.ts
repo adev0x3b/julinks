@@ -59,7 +59,7 @@ export async function getStats(userId: string, days = 30, now = new Date()): Pro
     clicksLast7Days,
     perLink: links.map((l) => ({ id: l.id, title: l.title, url: l.url, enabled: l.enabled, clicks: l._count.clicks })),
     daily,
-    topReferrers: referrers.map((r) => ({ referrer: r.referrer ?? "direct", count: Number(r.count) })),
+    topReferrers: referrers.map((r) => ({ referrer: r.referrer ?? "Direct or unknown", count: Number(r.count) })),
   };
 }
 

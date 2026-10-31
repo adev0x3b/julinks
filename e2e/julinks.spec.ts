@@ -514,12 +514,22 @@ test("clicks redirect, are counted, and show up in stats", async ({ page }) => {
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).toHaveURL(/\/dashboard$/);
 
-  await page.goto(`/${user.username}`);
-  const href = await page.getByRole("link", { name: "My new blog" }).getAttribute("href");
-  expect(href).toMatch(/^\/l\//);
+  // A visitor arriving from Instagram: the page tags its links with the site they came from,
+  // because the tap itself comes from this page (which the browser sends as the Referer).
+  await page.goto(`/${user.username}`, { referer: "https://l.instagram.com/" });
+  const blog = page.getByRole("link", { name: "My new blog" });
+  await expect(blog).toHaveAttribute("href", /^\/l\/[^?]+\?from=l\.instagram\.com$/);
+  const tagged = (await blog.getAttribute("href"))!;
+  const plain = tagged.split("?")[0];
+  const profileUrl = new URL(`/${user.username}`, page.url()).toString();
 
-  for (let i = 0; i < 3; i++) {
-    const response = await page.request.get(href!, { maxRedirects: 0, headers: { referer: "https://news.ycombinator.com/" } });
+  const clicks: [string, string][] = [
+    [tagged, profileUrl], // from Instagram, through the page
+    [tagged, profileUrl],
+    [plain, "https://news.ycombinator.com/"], // the /l/ link shared on its own
+  ];
+  for (const [url, referer] of clicks) {
+    const response = await page.request.get(url, { maxRedirects: 0, headers: { referer } });
     expect(response.status()).toBe(302);
     expect(response.headers()["location"]).toBe("https://example.com/blog");
   }
@@ -530,7 +540,9 @@ test("clicks redirect, are counted, and show up in stats", async ({ page }) => {
       return page.getByTestId("link-clicks").first().textContent();
     })
     .toBe("3");
+  await expect(page.getByText("instagram.com")).toBeVisible();
   await expect(page.getByText("news.ycombinator.com")).toBeVisible();
+  await expect(page.getByText("Direct or unknown")).toHaveCount(0);
 
   // Disabled link does not redirect.
   await page.goto("/dashboard");
