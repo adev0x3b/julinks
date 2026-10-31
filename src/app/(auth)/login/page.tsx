@@ -19,9 +19,16 @@ function LoginContent({ searchParams }: PageProps<"/login">) {
   );
 }
 
-// Reads the query string behind Suspense so the rest of the page stays prerendered: ?expired=1 after a stale session, ?reset=1 after a new password.
+// Reads the query string behind Suspense so the rest of the page stays prerendered: ?expired=1 after a stale session, ?reset=1 after a new password, ?deleted=1 after deleting the account.
 async function ExpiredNotice({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
-  const { expired, reset } = await searchParams;
+  const { expired, reset, deleted } = await searchParams;
+  if (deleted === "1") {
+    return (
+      <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status" data-testid="account-deleted">
+        Your account and page are deleted.
+      </p>
+    );
+  }
   if (reset === "1") {
     return (
       <p className="mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status" data-testid="reset-done">

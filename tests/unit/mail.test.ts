@@ -51,6 +51,16 @@ describe("mail templates", () => {
     expect(mail.text).toContain("- and 3 more");
   });
 
+  it("counts contact messages without quoting them, alone or with requests", () => {
+    const alone = signupRequestsMail(app, 0, [], 2);
+    expect(alone.subject).toBe("JuLinks: 2 messages in the inbox");
+    expect(alone.text).toContain("https://links.example.com/dashboard/messages");
+    expect(alone.text).not.toContain("dashboard/requests");
+    const both = signupRequestsMail(app, 1, [{ username: "june", email: "june@example.com" }], 1);
+    expect(both.subject).toBe("JuLinks: a new sign-up request and a message in the inbox");
+    expect(both.html).toContain('href="https://links.example.com/dashboard/messages"');
+  });
+
   it("escapes what it puts in HTML", () => {
     const mail = signupRequestsMail(app, 1, [{ username: "x", email: '"><script>@example.com' }]);
     expect(mail.html).not.toContain("<script>");

@@ -1,3 +1,4 @@
+import { DeleteAccountForm } from "./DeleteAccountForm";
 import { PasswordForm } from "./PasswordForm";
 import { requireUser } from "@/lib/session";
 
@@ -23,6 +24,25 @@ export default async function AccountPage() {
         <h2 className="text-base font-semibold">Change password</h2>
         <p className="mb-4 text-sm text-stone-500">Every other device where you are logged in will be logged out.</p>
         <PasswordForm />
+      </section>
+
+      <section className="card">
+        <h2 className="text-base font-semibold">Your data</h2>
+        <p className="mb-4 text-sm text-stone-500">
+          Everything your account holds as a JSON file: profile, links, folders, social icons, themes, links to your pictures and click totals.
+        </p>
+        {/* A plain link: the browser downloads the file the route answers with. */}
+        <a href="/dashboard/account/export" className="btn-secondary" download data-testid="export-data">
+          Download my data
+        </a>
+      </section>
+
+      <section className="card">
+        <h2 className="text-base font-semibold">Delete account</h2>
+        <p className="mb-4 text-sm text-stone-500">
+          Your page goes offline at once, and your links, pictures, themes and stats are deleted. This cannot be undone.
+        </p>
+        <DeleteAccountForm />
       </section>
     </div>
   );

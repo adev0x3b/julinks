@@ -9,18 +9,34 @@ type Content = Omit<Mail, "to">;
 
 export type RequestSummary = { username: string; email: string };
 
-export function signupRequestsMail(appUrl: URL, pending: number, latest: RequestSummary[]): Content {
+/**
+ * The admins' notice: sign-up requests waiting, and contact form messages in the inbox. Messages are
+ * counted, never quoted: their text comes from anyone on the internet and stays inside the dashboard.
+ */
+export function signupRequestsMail(appUrl: URL, pending: number, latest: RequestSummary[], messages = 0): Content {
   const reviewUrl = new URL("/dashboard/requests", appUrl).toString();
-  const subject = pending === 1 ? "JuLinks: a new sign-up request" : `JuLinks: ${pending} sign-up requests waiting`;
-  const intro = pending === 1 ? "Someone asked for a JuLinks page:" : `${pending} sign-up requests are waiting for a decision. The latest:`;
-  const lines = latest.map((r) => `${r.username} <${r.email}>`);
-  const more = pending > latest.length ? `and ${pending - latest.length} more` : null;
-  const text = [intro, "", ...lines.map((l) => `- ${l}`), ...(more ? [`- ${more}`] : []), "", `Approve or deny them at ${reviewUrl}`].join("\n");
-  const html = page(
-    `<p>${escape(intro)}</p><ul>${lines.map((l) => `<li>${escape(l)}</li>`).join("")}${more ? `<li>${escape(more)}</li>` : ""}</ul>` +
-      `<p><a href="${escape(reviewUrl)}">Approve or deny them</a></p>`,
-  );
-  return { subject, text, html };
+  const inboxUrl = new URL("/dashboard/messages", appUrl).toString();
+  const requestsLine = pending === 1 ? "a new sign-up request" : `${pending} sign-up requests waiting`;
+  const messagesLine = messages === 1 ? "a message in the inbox" : `${messages} messages in the inbox`;
+  const subject = `JuLinks: ${[pending > 0 && requestsLine, messages > 0 && messagesLine].filter(Boolean).join(" and ")}`;
+  const textParts: string[] = [];
+  let htmlBody = "";
+  if (pending > 0) {
+    const intro = pending === 1 ? "Someone asked for a JuLinks page:" : `${pending} sign-up requests are waiting for a decision. The latest:`;
+    const lines = latest.map((r) => `${r.username} <${r.email}>`);
+    const more = pending > latest.length ? `and ${pending - latest.length} more` : null;
+    textParts.push(intro, "", ...lines.map((l) => `- ${l}`), ...(more ? [`- ${more}`] : []), "", `Approve or deny them at ${reviewUrl}`);
+    htmlBody +=
+      `<p>${escape(intro)}</p><ul>${lines.map((l) => `<li>${escape(l)}</li>`).join("")}${more ? `<li>${escape(more)}</li>` : ""}</ul>` +
+      `<p><a href="${escape(reviewUrl)}">Approve or deny them</a></p>`;
+  }
+  if (messages > 0) {
+    const intro = messages === 1 ? "There is a message from the contact form." : `There are ${messages} messages from the contact form.`;
+    if (textParts.length) textParts.push("");
+    textParts.push(intro, `Read them at ${inboxUrl}`);
+    htmlBody += `<p>${escape(intro)} <a href="${escape(inboxUrl)}">Read them</a></p>`;
+  }
+  return { subject, text: textParts.join("\n"), html: page(htmlBody) };
 }
 
 export type DecisionKind = "approved" | "denied" | "revoked";

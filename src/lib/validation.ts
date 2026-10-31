@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CONTACT_KINDS } from "@/lib/contact-kinds";
 import { ROLES } from "@/lib/roles";
 import { MAX_SOCIALS, SOCIAL_PLATFORM_IDS, SOCIAL_PLATFORMS } from "@/lib/socials";
 import { BUTTON_STYLES, FONTS, HEX_COLOUR, RADII, SHADOWS } from "@/lib/themes";
@@ -11,7 +12,7 @@ z.config({ jitless: true });
 export const RESERVED_USERNAMES = new Set([
   "login", "signup", "logout", "dashboard", "api", "l", "img", "themes", "admin", "settings",
   "stats", "static", "public", "assets", "uploads", "favicon.ico", "robots.txt", "sitemap.xml", "health", "setup",
-  "forgot-password", "reset-password",
+  "forgot-password", "reset-password", "contact", "privacy", "terms",
 ]);
 
 const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9_-]{1,28}[a-z0-9])?$/;
@@ -74,6 +75,26 @@ export const forgotPasswordSchema = z.object({
 export const resetPasswordSchema = z
   .object({ password: passwordSchema, confirmPassword: z.string() })
   .refine((v) => v.password === v.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match" });
+
+/** The contact form: what it is about, the page in question if any, the message, and an optional address for the answer. */
+export const contactSchema = z.object({
+  kind: z.enum(CONTACT_KINDS, { message: "Pick what your message is about" }),
+  page: z
+    .string()
+    .trim()
+    .max(200, "Keep the page to 200 characters")
+    .transform((v) => v || null),
+  message: z.string().trim().min(10, "Write at least 10 characters").max(2000, "Keep the message to 2000 characters"),
+  email: z
+    .union([z.literal(""), z.string().trim().toLowerCase().email("Enter a valid email, or leave it empty").max(254)])
+    .transform((v) => v || null),
+});
+
+/** Deleting an account: the password proves it is the owner at the keyboard. */
+export const deleteAccountSchema = z.object({
+  password: z.string().min(1, "Enter your password").max(128),
+  confirm: z.literal("on", { message: "Tick the box to confirm" }),
+});
 
 export const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email"),

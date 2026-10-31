@@ -12,3 +12,19 @@ export function demoLoginAllowed(): boolean {
   if (value === undefined || value === "") return true;
   return value === "1" || value === "true";
 }
+
+/**
+ * Who runs this site, named on the privacy notice and the terms (SITE_OPERATOR, e.g. a person's or a
+ * company's name). Unset, the pages say "the operator of this site".
+ */
+export function siteOperator(): string | null {
+  return process.env.SITE_OPERATOR?.trim() || null;
+}
+
+/**
+ * The service providers that handle data for this site, as a sentence fragment for the privacy notice
+ * (SITE_PROCESSORS, e.g. "Cloudflare (network), Resend (email)"). Unset, the notice says the data stays on this server.
+ */
+export function siteProcessors(): string | null {
+  return process.env.SITE_PROCESSORS?.trim() || null;
+}

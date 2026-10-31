@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { SetupGate } from "@/components/SetupGate";
 import Link from "next/link";
+import { LegalFooter } from "@/components/legal/LegalPage";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PhoneFrame } from "@/components/PhoneFrame";
@@ -89,6 +90,7 @@ function Landing() {
           GitHub
         </a>
         .
+        <LegalFooter className="pt-2" />
       </footer>
     </main>
   );

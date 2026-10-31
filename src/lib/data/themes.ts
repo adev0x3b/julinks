@@ -125,10 +125,10 @@ export async function deleteTheme(userId: string, themeId: string): Promise<{ ba
   return { backgroundKey: theme.backgroundKey, wasPublic: theme.isPublic };
 }
 
-/** A theme another user may copy: public, or the caller's own. */
+/** A theme another user may copy: public on an approved account (as listed in the gallery), or the caller's own. */
 export async function getCopyableTheme(userId: string, themeId: string): Promise<ThemeRecord & { owner: { username: string } }> {
   const row = await prisma.theme.findFirst({
-    where: { id: themeId, OR: [{ isPublic: true }, { ownerId: userId }] },
+    where: { id: themeId, OR: [{ isPublic: true, owner: { status: "approved" } }, { ownerId: userId }] },
     select: { ...themeSelect, owner: { select: { username: true } } },
   });
   if (!row) throw new ThemeNotFound();
@@ -146,7 +146,8 @@ export type GalleryTheme = {
 
 export async function listGallery(limit = 60): Promise<GalleryTheme[]> {
   const rows = await prisma.theme.findMany({
-    where: { isPublic: true },
+    // A denied or closed account's themes leave the gallery with its page.
+    where: { isPublic: true, owner: { status: "approved" } },
     orderBy: { publishedAt: "desc" },
     take: limit,
     select: {

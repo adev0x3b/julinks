@@ -223,3 +223,23 @@ body {
   filter: none;
   background: color-mix(in srgb, var(--jl-btn-text) 6%, transparent);
 }
+
+/* Running text on /privacy and /terms: headings, paragraphs and lists without a typography plugin. */
+@layer components {
+  .legal h1 {
+    @apply text-3xl font-bold tracking-tight text-stone-900;
+  }
+  .legal h2 {
+    @apply mt-8 text-lg font-semibold text-stone-900;
+  }
+  .legal p,
+  .legal li {
+    @apply mt-3 text-[15px] leading-relaxed text-stone-700;
+  }
+  .legal ul {
+    @apply list-disc pl-5;
+  }
+  .legal a {
+    @apply font-medium text-brand-600 underline-offset-2 hover:underline;
+  }
+}

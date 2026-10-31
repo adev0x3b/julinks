@@ -168,14 +168,22 @@ export function PublicProfile({
         );
       })}
 
-      <p className="jl-muted mt-auto pt-12 text-sm">
-        {/* Visitors who like the page find out where to get one; previews stay inert like every other link in them. */}
+      <p className="jl-muted mt-auto flex flex-wrap justify-center gap-x-4 pt-12 text-sm">
+        {/* Visitors who like the page find out where to get one, or report it; previews stay inert like every other link in them. */}
         {preview ? (
           "Made with JuLinks"
         ) : (
-          <Link href="/" className="underline-offset-2 hover:underline" data-testid="made-with">
-            Made with JuLinks
-          </Link>
+          <>
+            <Link href="/" className="underline-offset-2 hover:underline" data-testid="made-with">
+              Made with JuLinks
+            </Link>
+            <Link href="/privacy" className="underline-offset-2 hover:underline">
+              Privacy
+            </Link>
+            <Link href={`/contact?kind=report&page=${encodeURIComponent(profile.username)}`} className="underline-offset-2 hover:underline" data-testid="report-page">
+              Report
+            </Link>
+          </>
         )}
       </p>
     </div>

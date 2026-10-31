@@ -61,7 +61,7 @@ function activeConfig(): MailConfig | null {
 }
 
 /**
- * A sign-up request was stored: make sure an admin notice is waiting. One at a time, so a
+ * A sign-up request or a contact message was stored: make sure an admin notice is waiting. One at a time, so a
  * burst of requests shares it, and never sooner than ADMIN_NOTICE_SPACING_MS after the last one.
  */
 export async function queueAdminNotice(): Promise<void> {
@@ -115,7 +115,7 @@ export async function remainingBudget(now = new Date(), limits = mailLimits()): 
 
 /** The admin notice is written when it goes out, so it lists what is waiting then. Null when nothing is. */
 async function adminNotice(): Promise<Mail | null> {
-  const [admins, pending, latest] = await Promise.all([
+  const [admins, pending, latest, messages] = await Promise.all([
     prisma.user.findMany({ where: { role: "admin", status: "approved", isDemo: false }, select: { email: true } }),
     prisma.user.count({ where: { status: "pending", isDemo: false } }),
     prisma.user.findMany({
@@ -124,9 +124,10 @@ async function adminNotice(): Promise<Mail | null> {
       take: LATEST_SHOWN,
       select: { username: true, email: true },
     }),
+    prisma.contactMessage.count(),
   ]);
-  if (admins.length === 0 || pending === 0) return null;
-  return { to: admins.map((a) => a.email), ...signupRequestsMail(appUrl(), pending, latest) };
+  if (admins.length === 0 || (pending === 0 && messages === 0)) return null;
+  return { to: admins.map((a) => a.email), ...signupRequestsMail(appUrl(), pending, latest, messages) };
 }
 
 /** Wait before retry number `attempts`: 2, 4, 8 ... minutes, at most six hours. */

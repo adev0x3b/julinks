@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { logout } from "@/actions/auth";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { countContactMessages } from "@/lib/data/contact";
 import { countPendingRequests } from "@/lib/data/requests";
 import { isSetupPending } from "@/lib/data/setup";
 import { canReview } from "@/lib/roles";
@@ -48,20 +49,34 @@ export default function DashboardLayout({ children }: LayoutProps<"/dashboard">)
   );
 }
 
-/** The Requests link, with the number waiting, only for admins and moderators. */
+/** The Requests link for admins and moderators, and the Messages link for admins, each with the number waiting. */
 async function ReviewerNav() {
   const user = await getCurrentUser();
   if (!user || !canReview(user.role)) return null;
-  const waiting = await countPendingRequests();
+  const isAdmin = user.role === "admin";
+  const [waiting, messages] = await Promise.all([countPendingRequests(), isAdmin ? countContactMessages() : 0]);
   return (
-    <Link href="/dashboard/requests" className="btn-ghost flex items-center gap-1.5" data-testid="requests-nav">
-      Requests
-      {waiting > 0 && (
-        <span className="rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white text-on-brand" data-testid="requests-count">
-          {waiting}
-        </span>
+    <>
+      <Link href="/dashboard/requests" className="btn-ghost flex items-center gap-1.5" data-testid="requests-nav">
+        Requests
+        <Count n={waiting} testId="requests-count" />
+      </Link>
+      {isAdmin && (
+        <Link href="/dashboard/messages" className="btn-ghost flex items-center gap-1.5" data-testid="messages-nav">
+          Messages
+          <Count n={messages} testId="messages-count" />
+        </Link>
       )}
-    </Link>
+    </>
+  );
+}
+
+function Count({ n, testId }: { n: number; testId: string }) {
+  if (n === 0) return null;
+  return (
+    <span className="rounded-full bg-amber-500 px-1.5 text-xs font-semibold text-white text-on-brand" data-testid={testId}>
+      {n}
+    </span>
   );
 }
 

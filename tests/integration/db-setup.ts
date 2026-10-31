@@ -14,6 +14,7 @@ beforeEach(async () => {
   await prisma.setupCode.deleteMany();
   await prisma.mailOutbox.deleteMany();
   await prisma.signupConfirmation.deleteMany();
+  await prisma.contactMessage.deleteMany();
   // password_resets go with their users.
 });
 

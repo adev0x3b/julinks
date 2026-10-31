@@ -64,15 +64,22 @@ export class RateLimiter {
   }
 
   /** Drops expired buckets so the map cannot grow without bound. */
-  private sweep(now: number) {
+  sweep(now = this.now()) {
     for (const [key, bucket] of this.buckets) {
       if (bucket.resetAt <= now) this.buckets.delete(key);
     }
   }
 }
 
-const globalLimiters = globalThis as unknown as { __julinksLimiters?: Record<string, RateLimiter> };
+const globalLimiters = globalThis as unknown as { __julinksLimiters?: Record<string, RateLimiter>; __julinksLimiterSweep?: boolean };
 const limiters = (globalLimiters.__julinksLimiters ??= {});
+
+// Keys are mostly IP addresses: expired ones are dropped every minute, so none outlives its window by
+// much (the privacy notice promises about an hour), even on a quiet site. unref() keeps it from holding the process open.
+if (!globalLimiters.__julinksLimiterSweep) {
+  globalLimiters.__julinksLimiterSweep = true;
+  setInterval(() => Object.values(limiters).forEach((l) => l.sweep()), 60_000).unref();
+}
 
 function limiter(name: string, limit: number, windowMs: number): RateLimiter {
   return (limiters[name] ??= new RateLimiter(limit, windowMs));
@@ -92,3 +99,5 @@ export const mailLinkLimiter = limiter("reset", 5, 60 * 60 * 1000);
 export const clickLimiter = limiter("click", 120, 60 * 1000);
 /** Image uploads per user: each one is decoded and re-encoded, so keep the CPU honest. */
 export const uploadLimiter = limiter("upload", 40, 15 * 60 * 1000);
+/** Contact form messages per IP: 5 an hour. The inbox also has a daily and a total cap (src/lib/data/contact.ts). */
+export const contactLimiter = limiter("contact", 5, 60 * 60 * 1000);

@@ -79,6 +79,17 @@ export function SignupForm() {
       <button type="submit" className="btn-primary" disabled={pending}>
         {pending ? "Sending…" : "Request my page"}
       </button>
+      <p className="text-center text-xs text-stone-500">
+        By requesting a page you accept the{" "}
+        <Link href="/terms" className="underline">
+          terms
+        </Link>{" "}
+        and the{" "}
+        <Link href="/privacy" className="underline">
+          privacy notice
+        </Link>
+        .
+      </p>
       <p className="text-center text-sm text-stone-500">
         Already approved?{" "}
         <Link href="/login" className="font-medium text-brand-600 hover:underline">

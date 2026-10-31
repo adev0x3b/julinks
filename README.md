@@ -48,6 +48,7 @@ Live at [links.juume.site](https://links.juume.site).
 - **Invite only**: a sign-up is a request that an admin or moderator approves, with a role, or denies. With mail set up, the requester confirms their email first, the admins get an email about new requests and the requester one about the decision.
 - **Password reset** by mail, with a one-use link.
 - **First-run setup**: a fresh install serves nothing until the admin account is created with a one-time code printed by `docker compose up`.
+- **Privacy built in**: a privacy notice and terms in English and Italian, a contact form for reports and privacy requests that admins read in the dashboard, a "Download my data" button and account deletion. Denied requests, closed accounts and old messages are deleted on a schedule. One cookie, for login only, so no banner.
 - **Dark mode** in the dashboard. Public pages take every colour from their theme.
 
 ## Quick start
@@ -77,6 +78,7 @@ Everything is read from `.env` (see [`.env.example`](.env.example) for the comme
 | `WEB_PORT`, `WEB_BIND` | `3000`, `127.0.0.1` | Where compose publishes the app. `WEB_BIND=0.0.0.0` opens it to the LAN. |
 | `TRUST_PROXY` | unset | `cloudflare` behind a Cloudflare Tunnel, `1` behind nginx, Caddy or Traefik: keys rate limits on the visitor's address. |
 | `ALLOW_DEMO_LOGIN` | `1` | Set `0` on a public site so nobody logs in as the demo profiles. |
+| `SITE_OPERATOR`, `SITE_PROCESSORS` | unset | Who runs the site and which providers handle its data, named on `/privacy` and `/terms`. |
 | `S3_*` | the compose SeaweedFS | Any S3-compatible service works, AWS S3 and Cloudflare R2 included. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM` | unset, `587` | Mail through any SMTP server with STARTTLS. Unset means no mail; the app logs what it would have sent. |
 | `MAIL_DAILY_LIMIT`, `MAIL_HOURLY_LIMIT` | `50`, `10` | Addresses the app may mail per rolling 24 hours and hour. Keep them under your provider's quota. |
@@ -96,7 +98,7 @@ If the relay runs in another compose project on the same machine, [`docker-compo
 
 ### Exposing it to the internet
 
-1. Set a real `SESSION_SECRET`, `APP_URL` with `https://`, `TRUST_PROXY` for your proxy and `ALLOW_DEMO_LOGIN=0`.
+1. Set a real `SESSION_SECRET`, `APP_URL` with `https://`, `TRUST_PROXY` for your proxy and `ALLOW_DEMO_LOGIN=0`. Fill in `SITE_OPERATOR` and `SITE_PROCESSORS` for the privacy notice, and read [/privacy](http://localhost:3000/privacy) and [/terms](http://localhost:3000/terms) to check they fit your site.
 2. Put TLS in front: a Cloudflare Tunnel, Caddy or nginx on the same machine pointing at `http://localhost:3000`.
 3. Complete `/setup` before sharing the address.
 

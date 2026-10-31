@@ -1,3 +1,4 @@
+import { LegalFooter } from "@/components/legal/LegalPage";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -12,6 +13,7 @@ export function AuthShell({ title, children }: { title: string; children: React.
         <h1 className="mb-6 text-xl font-semibold">{title}</h1>
         {children}
       </div>
+      <LegalFooter className="pt-6" />
     </main>
   );
 }

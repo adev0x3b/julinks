@@ -2,7 +2,7 @@
 
 import { revalidatePath, updateTag } from "next/cache";
 import { after } from "next/server";
-import { profileTag } from "@/lib/cache-tags";
+import { GALLERY_TAG, profileTag } from "@/lib/cache-tags";
 import { RequestNotFound, ReviewForbidden, reviewRequest, type Decision } from "@/lib/data/requests";
 import { drainOutbox, queueDecisionMail } from "@/lib/mail/outbox";
 import { requireReviewer } from "@/lib/session";
@@ -18,8 +18,9 @@ export async function reviewSignup(userId: unknown, input: unknown): Promise<Rev
   try {
     const { notify, ...decision } = parsed.data;
     const account = await reviewRequest({ id: reviewer.id, role: reviewer.role }, userId, decision as Decision);
-    // Revoking an approved account takes its public page down; approving one makes it appear.
+    // Revoking an approved account takes its public page and published themes down; approving one brings them back.
     updateTag(profileTag(account.username));
+    if (account.previousStatus !== account.status) updateTag(GALLERY_TAG);
     // The requester hears about it by mail, after the response, unless the request was denied as spam:
     // junk sign-ups often carry made-up addresses, and mail to those bounces.
     if (notify !== false) {

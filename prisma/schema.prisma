@@ -229,3 +229,25 @@ model SignupConfirmation {
   @@index([expiresAt])
   @@map("signup_confirmations")
 }
+
+/// A message sent with the contact form: a report about a page, a privacy request or anything else.
+/// Only admins read them (they can hold personal data); deleted by an admin, or after MESSAGE_RETENTION_DAYS.
+model ContactMessage {
+  id        String             @id @default(cuid())
+  kind      ContactMessageKind
+  /// The page the message is about, when it is about one (a username as typed, not a foreign key).
+  page      String?
+  message   String
+  /// Where to answer, when the sender gave an address.
+  email     String?
+  createdAt DateTime           @default(now())
+
+  @@index([createdAt])
+  @@map("contact_messages")
+}
+
+enum ContactMessageKind {
+  report
+  privacy
+  other
+}

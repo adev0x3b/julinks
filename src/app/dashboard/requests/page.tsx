@@ -1,3 +1,4 @@
+import { CLOSED_ACCOUNT_RETENTION_DAYS } from "@/lib/data/accounts";
 import { listRequests } from "@/lib/data/requests";
 import { assignableRoles } from "@/lib/roles";
 import { requireReviewer } from "@/lib/session";
@@ -35,7 +36,8 @@ export default async function RequestsPage() {
       <section className="card">
         <h2 className="text-base font-semibold">Decided</h2>
         <p className="mb-4 text-sm text-stone-500">
-          Approved accounts and denied requests. A decision can be changed, and so can a role.
+          Approved accounts and denied requests. A decision can be changed, and so can a role. Denied requests and closed accounts are
+          deleted {CLOSED_ACCOUNT_RETENTION_DAYS} days after the decision.
         </p>
         {decided.length === 0 ? (
           <p className="text-sm text-stone-500">Nothing decided yet.</p>

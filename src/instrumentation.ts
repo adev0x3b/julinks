@@ -2,13 +2,14 @@
  * Runs once when the server starts. A site that is not set up yet says so in the logs, next
  * to the URL, so an operator reading `docker compose logs web` knows why every page
  * redirects to /setup (the code itself is printed by the migrate step). Then the mail
- * outbox loop starts.
+ * outbox loop starts, and the hourly clean-up of data past its retention.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { isSetupPending } = await import("@/lib/data/setup");
   const { REGENERATE_COMMAND } = await import("@/lib/setup-code");
   const { startMailLoop } = await import("@/lib/mail/outbox");
+  const { startMaintenanceLoop } = await import("@/lib/maintenance");
   try {
     if (await isSetupPending()) {
       console.log(`JuLinks is not set up: open /setup with the code the migrate step printed (docker compose logs migrate), or make a new one with: ${REGENERATE_COMMAND}`);
@@ -18,4 +19,5 @@ export async function register() {
   }
   // Mail waiting in the outbox (from before a restart, or past the budget) goes out from here.
   startMailLoop().catch((error) => console.error("[mail] could not start the outbox loop:", error));
+  startMaintenanceLoop();
 }

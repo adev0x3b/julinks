@@ -85,6 +85,7 @@ test.beforeAll(async () => {
     await client.query('delete from users where "isDemo" = false');
     await client.query('delete from setup_codes');
     await client.query('delete from mail_outbox');
+    await client.query('delete from contact_messages');
     await client.query('insert into setup_codes (id, "codeHash") values (1, $1)', [await bcrypt.hash(setupCode, 4)]);
   } finally {
     await client.end();
@@ -724,4 +725,99 @@ test("email confirmation: the link stores the request, and asks for another name
   await page.getByLabel("Username").fill(`clash${run}`);
   await page.getByRole("button", { name: "Confirm my email" }).click();
   await expect(page.getByTestId("confirm-done")).toContainText(`/clash${run}`);
+});
+
+test("contact: a report from a public page reaches the admins, who delete it once handled", async ({ page }) => {
+  await page.goto("/ada");
+  await page.getByTestId("report-page").click();
+  await expect(page).toHaveURL(/\/contact\?kind=report&page=ada$/);
+  await expect(page.getByLabel("What is it about?")).toHaveValue("report");
+  await expect(page.getByLabel("Page (optional)")).toHaveValue("ada");
+  // Too short: the form says why and keeps what was typed.
+  await page.getByLabel("Message").fill("bad");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.locator("#message-error")).toContainText("at least 10");
+  await page.getByLabel("Message").fill("This page links to a fake bank login.");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByTestId("contact-sent")).toBeVisible();
+
+  // A bot that fills the hidden field is thanked the same way, and nothing is stored.
+  await page.goto("/contact");
+  await page.getByLabel("Message").fill("Buy cheap followers at example.com today");
+  await page.locator("#website").fill("https://spam.example");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByTestId("contact-sent")).toBeVisible();
+
+  // Clients never see the inbox.
+  await loginAs(page, newcomer);
+  await expect(page.getByTestId("messages-nav")).toHaveCount(0);
+  await page.goto("/dashboard/messages");
+  await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
+  await page.goto("/dashboard");
+  await logout(page);
+
+  await login(page);
+  await expect(page.getByTestId("messages-count")).toHaveText("1");
+  await page.getByTestId("messages-nav").click();
+  const messages = page.getByTestId("messages").locator("li");
+  await expect(messages).toHaveCount(1);
+  await expect(messages.first()).toContainText("fake bank login");
+  await expect(messages.first().getByRole("link", { name: "/ada" })).toHaveAttribute("href", "/ada");
+  page.once("dialog", (dialog) => dialog.accept());
+  await messages.first().getByRole("button", { name: "Delete message" }).click();
+  await expect(page.getByTestId("no-messages")).toBeVisible();
+  await expect(page.getByTestId("messages-count")).toHaveCount(0);
+  await logout(page);
+});
+
+test("account: download my data, then delete the account for good", async ({ page }) => {
+  // The only admin cannot delete themselves.
+  await login(page);
+  await page.goto("/dashboard/account");
+  await page.locator("#delete-password").fill(user.password);
+  await page.getByLabel(/I understand/).check();
+  await page.getByRole("button", { name: "Delete my account" }).click();
+  await expect(page.getByText("You are the only admin")).toBeVisible();
+  await logout(page);
+
+  await loginAs(page, newcomer);
+  await page.goto("/dashboard/account");
+  const download = page.waitForEvent("download");
+  await page.getByTestId("export-data").click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(new RegExp(`^julinks-${newcomer.username}-\\d{4}-\\d{2}-\\d{2}\\.json$`));
+  const data = JSON.parse(await new Response((await file.createReadStream()) as unknown as ReadableStream).text());
+  expect(data.account).toMatchObject({ username: newcomer.username, email: newcomer.email });
+
+  // A wrong password, or no tick, deletes nothing.
+  const password = page.locator("#delete-password");
+  await password.fill("not my password");
+  await page.getByLabel(/I understand/).check();
+  await page.getByRole("button", { name: "Delete my account" }).click();
+  await expect(page.locator("#delete-password-error")).toContainText("Wrong password");
+  await password.fill(newcomer.password);
+  await page.getByLabel(/I understand/).uncheck();
+  await page.getByRole("button", { name: "Delete my account" }).click();
+  await expect(page.locator("#confirm-error, .error").filter({ hasText: "Tick the box" })).toBeVisible();
+
+  await password.fill(newcomer.password);
+  await page.getByLabel(/I understand/).check();
+  await page.getByRole("button", { name: "Delete my account" }).click();
+  await expect(page).toHaveURL(/\/login\?deleted=1$/);
+  await expect(page.getByTestId("account-deleted")).toBeVisible();
+  await submitLogin(page, newcomer);
+  await expect(page.locator(".error").filter({ hasText: "Wrong email or password" })).toBeVisible();
+  await page.goto(`/${newcomer.username}`);
+  await expect(page.getByRole("heading", { name: "Nothing here" })).toBeVisible();
+});
+
+test("privacy and terms are linked from every public page and name the operator when set", async ({ page }) => {
+  await page.goto("/signup");
+  await page.getByRole("navigation", { name: "Legal" }).getByRole("link", { name: "Privacy" }).click();
+  await expect(page.getByRole("heading", { name: "Privacy notice" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Informativa sulla privacy" })).toBeVisible();
+  await expect(page.getByText("julinks_session").first()).toBeVisible();
+  await page.goto("/terms");
+  await expect(page.getByRole("heading", { name: "Terms of use" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Condizioni d'uso" })).toBeVisible();
 });
