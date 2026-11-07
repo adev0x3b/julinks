@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useEffectEvent, useRef } from "react";
 import { addLink, type LinkFormState } from "@/actions/links";
 
 const initial: LinkFormState = {};
@@ -10,13 +10,14 @@ export function AddLinkForm({ onAdded }: { onAdded: () => void }) {
   const formRef = useRef<HTMLFormElement>(null);
   const e = state.errors ?? {};
 
+  // Once per save: the form is cleared and the editor told. An effect event,
+  // so the effect reacts to the save alone and still calls the latest onAdded.
+  const added = useEffectEvent(() => {
+    formRef.current?.reset();
+    onAdded();
+  });
   useEffect(() => {
-    if (state.savedAt) {
-      formRef.current?.reset();
-      onAdded();
-    }
-    // onAdded is stable for the life of the editor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (state.savedAt) added();
   }, [state.savedAt]);
 
   return (
